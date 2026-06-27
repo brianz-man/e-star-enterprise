@@ -35,7 +35,7 @@ export default function Home() {
   return (
     <div>
       {/* Hero */}
-      <section className="bg-gradient-to-br from-brand-900 via-brand-800 to-brand-700 text-white">
+      <section className="bg-linear-to-br from-brand-900 via-brand-800 to-brand-700 text-white">
         <div className="section py-20 flex flex-col items-center text-center">
           <span className="inline-flex items-center gap-2 bg-white/10 border border-white/20 text-brand-200 text-xs font-semibold px-3 py-1.5 rounded-full mb-6">
             <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
@@ -66,7 +66,7 @@ export default function Home() {
 
           <div className="flex flex-wrap justify-center gap-4">
             <Link to="/products" className="btn btn-primary btn-lg">Shop All Products <ArrowRight size={16} /></Link>
-            <a href="https://wa.me/254700000000" target="_blank" rel="noreferrer"
+            <a href="https://wa.me/254745581692" target="_blank" rel="noreferrer"
               className="btn btn-secondary btn-lg bg-white/10 border-white/30 text-white hover:bg-white/20">
               WhatsApp Us
             </a>

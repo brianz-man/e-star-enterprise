@@ -54,16 +54,8 @@ export const adminApi = {
   catalog: () =>
     api.get<ApiOk<AdminCatalog>>('/admin/catalog').then(r => r.data.data),
 
-  products: (page?: number, limit?: number) =>
-    api.get<ApiList<Product> | ApiOk<Product[]>>('/admin/products', { params: { page, limit } })
-      .then(r => {
-        // Check if response has meta property (new pagination format)
-        if ('meta' in r.data) {
-          return r.data as ApiList<Product>
-        }
-        // Fallback for old format without pagination
-        return { data: r.data.data, meta: { total: r.data.data.length, page: 1, pages: 1 } } as ApiList<Product>
-      }),
+  products: (page = 1, limit = 20) =>
+    api.get<ApiList<Product>>('/admin/products', { params: { page, limit } }).then(r => r.data),
 
   product: (id: string) =>
     api.get<ApiOk<Product>>(`/admin/products/${id}`).then(r => r.data.data),

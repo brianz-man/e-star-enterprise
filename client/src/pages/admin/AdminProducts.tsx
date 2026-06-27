@@ -24,17 +24,9 @@ export default function AdminProducts() {
   const load = useCallback((page = 1) => {
     setBusy(true)
     adminApi.products(page)
-      .then(data => {
-        // Check if the response includes metadata
-        if (data && typeof data === 'object' && 'meta' in data) {
-          const { data: products, meta } = data as any
-          setProducts(products)
-          setMeta(meta)
-        } else {
-          // Fallback for old API response format
-          setProducts(data)
-          setMeta({ total: (data as any).length, page: 1, pages: 1 })
-        }
+      .then(res => {
+        setProducts(res.data)
+        setMeta(res.meta ?? { total: res.data.length, page, pages: 1 })
       })
       .catch(() => toast.error('Failed to load products'))
       .finally(() => setBusy(false))

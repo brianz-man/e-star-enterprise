@@ -39,6 +39,7 @@ export interface Product {
   comparePrice?: number | string | null
   stockQty: number; lowStockAt: number
   isActive: boolean; isFeatured: boolean
+  weight?: number | null
   brand: Brand; category: Category
   images: ProductImage[]
   compatibility: PrinterCompatibility[]
@@ -109,7 +110,10 @@ export interface AdminUser {
   _count: { orders: number }
 }
 
-export interface InventoryProduct extends Product {
+export type InventoryProduct = Pick<
+  Product,
+  'id' | 'name' | 'slug' | 'sku' | 'price' | 'stockQty' | 'lowStockAt' | 'isActive' | 'isFeatured'
+> & {
   brand: { id?: string; name: string }
   category: { id?: string; name: string }
 }
