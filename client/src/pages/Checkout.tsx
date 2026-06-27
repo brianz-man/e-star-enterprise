@@ -12,6 +12,7 @@ import { Input }         from '@/components/common/Input'
 import { Button }        from '@/components/common/Button'
 import { Spinner }       from '@/components/common/Spinner'
 import { kes }           from '@/utils/formatCurrency'
+import { getApiError }   from '@/utils/getApiError'
 import type { Order }    from '@/types'
 import toast from 'react-hot-toast'
 
@@ -75,8 +76,7 @@ export default function Checkout() {
       resetCart()
       setOrder(o); setStep('payment')
     } catch (e: unknown) {
-      const msg = e && typeof e === 'object' && 'response' in e ? (e as { response?: { data?: { error?: string } } }).response?.data?.error : undefined
-      toast.error(msg ?? 'Failed to create order')
+      toast.error(getApiError(e, 'Failed to create order'))
     } finally { setCreating(false) }
   }
 
@@ -88,8 +88,7 @@ export default function Checkout() {
       toast.success('M-Pesa prompt sent! Enter your PIN.')
       setPolling(true)
     } catch (e: unknown) {
-      const msg = e && typeof e === 'object' && 'response' in e ? (e as { response?: { data?: { error?: string } } }).response?.data?.error : undefined
-      toast.error(msg ?? 'M-Pesa initiation failed')
+      toast.error(getApiError(e, 'M-Pesa initiation failed'))
     } finally { setPaying(false) }
   }
 
@@ -180,7 +179,7 @@ export default function Checkout() {
                     hint="An STK Push prompt will be sent to this number" />
                   {polling && (
                     <div className="flex items-center gap-3 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-sm text-blue-700">
-                      <Loader2 size={16} className="animate-spin flex-shrink-0" />
+                      <Loader2 size={16} className="animate-spin shrink-0" />
                       Waiting for M-Pesa confirmation — enter your PIN on your phone…
                     </div>
                   )}
@@ -217,7 +216,7 @@ export default function Checkout() {
           <ul className="space-y-3 mb-4">
             {summaryItems.map(item => (
                 <li key={item.key} className="flex gap-3 items-center">
-                  <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-50 flex-shrink-0 border border-gray-100">
+                  <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-50 shrink-0 border border-gray-100">
                     {item.imageUrl && <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -233,7 +232,7 @@ export default function Checkout() {
             <div className="flex justify-between text-gray-500"><span>Subtotal</span><span>{kes(subtotal)}</span></div>
             <div className="flex justify-between text-gray-500">
               <span>Delivery</span>
-              <span className={fee === 0 ? 'text-green-600 font-semibold' : ''}>{fee === 0 ? 'FREE 🎉' : kes(fee)}</span>
+              <span className={fee === 0 ? 'text-green-600 font-semibold' : ''}>{fee === 0 ? 'FREE ' : kes(fee)}</span>
             </div>
             <hr className="border-gray-100" />
             <div className="flex justify-between font-black text-gray-900 text-base"><span>Total</span><span>{kes(total)}</span></div>

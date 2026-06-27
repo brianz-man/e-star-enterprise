@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useForm, useFieldArray } from 'react-hook-form'
+import type { Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { ArrowLeft, Plus, Trash2, Upload, X } from 'lucide-react'
@@ -9,35 +10,43 @@ import { productsApi } from '@/api/products'
 import { Input } from '@/components/common/Input'
 import { Button } from '@/components/common/Button'
 import { Spinner } from '@/components/common/Spinner'
+import { getApiError } from '@/utils/getApiError'
 import type { AdminCatalog, Product, ProductImage } from '@/types'
 import toast from 'react-hot-toast'
 
-const schema = z.object({
+type ProductFormValues = {
+  name: string
+  description: string
+  sku: string
+  price: number
+  comparePrice?: number
+  stockQty: number
+  lowStockAt: number
+  brandId: string
+  categoryId: string
+  isFeatured: boolean
+  weight?: number
+  compatibility: { brand: string; printerModel: string; printerSeries?: string }[]
+}
+
+const productSchema = z.object({
   name: z.string().min(2, 'Min 2 characters'),
   description: z.string().min(10, 'Min 10 characters'),
-  sku: z.string().min(2).transform(v => v.toUpperCase()),
+  sku: z.string().min(2),
   price: z.coerce.number().positive('Must be positive'),
-  comparePrice: z.preprocess(
-    v => (v === '' || v === undefined || v === null ? undefined : Number(v)),
-    z.number().positive().optional(),
-  ),
+  comparePrice: z.coerce.number().positive().optional(),
   stockQty: z.coerce.number().int().min(0),
   lowStockAt: z.coerce.number().int().min(1),
   brandId: z.string().uuid('Select a brand'),
   categoryId: z.string().uuid('Select a category'),
   isFeatured: z.boolean(),
-  weight: z.preprocess(
-    v => (v === '' || v === undefined || v === null ? undefined : Number(v)),
-    z.number().positive().optional(),
-  ),
+  weight: z.coerce.number().positive().optional(),
   compatibility: z.array(z.object({
     brand: z.string().min(1),
     printerModel: z.string().min(1),
     printerSeries: z.string().optional(),
   })),
 })
-
-type Form = z.infer<typeof schema>
 
 export default function AdminProductForm() {
   const { id } = useParams<{ id: string }>()
@@ -50,8 +59,8 @@ export default function AdminProductForm() {
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
 
-  const { register, handleSubmit, control, reset, formState: { errors } } = useForm<Form>({
-    resolver: zodResolver(schema),
+  const { register, handleSubmit, control, reset, formState: { errors } } = useForm<ProductFormValues>({
+    resolver: zodResolver(productSchema) as Resolver<ProductFormValues>,
     defaultValues: {
       stockQty: 0,
       lowStockAt: 5,
@@ -97,11 +106,12 @@ export default function AdminProductForm() {
       .finally(() => setBusy(false))
   }, [id, isEdit, reset])
 
-  const onSubmit = async (data: Form) => {
+  const onSubmit = async (data: ProductFormValues) => {
     setSaving(true)
     try {
       const payload = {
         ...data,
+        sku: data.sku.toUpperCase(),
         comparePrice: data.comparePrice || undefined,
         weight: data.weight || undefined,
       }
@@ -115,10 +125,7 @@ export default function AdminProductForm() {
         nav(`/admin/products/${created.id}/edit`)
       }
     } catch (e: unknown) {
-      const msg = e && typeof e === 'object' && 'response' in e
-        ? (e as { response?: { data?: { error?: string } } }).response?.data?.error
-        : undefined
-      toast.error(msg ?? 'Failed to save product')
+      toast.error(getApiError(e, 'Failed to save product'))
     } finally {
       setSaving(false)
     }

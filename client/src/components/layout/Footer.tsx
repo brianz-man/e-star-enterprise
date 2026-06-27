@@ -15,7 +15,7 @@ export const Footer = () => (
           <p className="text-gray-400 text-sm leading-relaxed mb-4">
             Kenya's trusted supplier of genuine printer toners, ink cartridges, and office printing supplies.
           </p>
-          <a href="https://wa.me/254700000000" target="_blank" rel="noreferrer"
+          <a href="https://wa.me/254745581692" target="_blank" rel="noreferrer"
             className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-xl transition-colors">
             WhatsApp Us
           </a>
@@ -42,7 +42,7 @@ export const Footer = () => (
         <div>
           <h4 className="font-semibold text-gray-200 mb-4 text-sm uppercase tracking-wider">Contact</h4>
           <ul className="space-y-3 text-sm text-gray-400">
-            <li className="flex items-center gap-2"><Phone size={13} /><span>+254 700 000 000</span></li>
+            <li className="flex items-center gap-2"><Phone size={13} /><span>+254 745 581 692</span></li>
             <li className="flex items-center gap-2"><Mail  size={13} /><span>orders@e-star.co.ke</span></li>
             <li className="flex items-center gap-2"><MapPin size={13}/><span>Nairobi, Kenya</span></li>
           </ul>

@@ -9,6 +9,7 @@ import { useAuthStore } from '@/store/auth'
 import { useCartStore } from '@/store/cart'
 import { Input }       from '@/components/common/Input'
 import { Button }      from '@/components/common/Button'
+import { getApiError } from '@/utils/getApiError'
 import toast from 'react-hot-toast'
 
 const schema = z.object({
@@ -36,8 +37,7 @@ export default function Login() {
       toast.success(`Welcome back, ${r.user.firstName}!`)
       nav(from, { replace: true })
     } catch (e: unknown) {
-      const msg = e && typeof e === 'object' && 'response' in e ? (e as { response?: { data?: { error?: string } } }).response?.data?.error : undefined
-      toast.error(msg ?? 'Invalid email or password')
+      toast.error(getApiError(e, 'Invalid email or password'))
     } finally { setLoading(false) }
   }
 

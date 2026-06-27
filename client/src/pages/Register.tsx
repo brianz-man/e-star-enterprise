@@ -9,6 +9,7 @@ import { useAuthStore } from '@/store/auth'
 import { useCartStore } from '@/store/cart'
 import { Input }       from '@/components/common/Input'
 import { Button }      from '@/components/common/Button'
+import { getApiError } from '@/utils/getApiError'
 import toast from 'react-hot-toast'
 
 const schema = z.object({
@@ -37,8 +38,7 @@ export default function Register() {
       toast.success('Account created! Welcome to E-Star.')
       nav('/')
     } catch (e: unknown) {
-      const msg = e && typeof e === 'object' && 'response' in e ? (e as { response?: { data?: { error?: string } } }).response?.data?.error : undefined
-      toast.error(msg ?? 'Registration failed')
+      toast.error(getApiError(e, 'Registration failed'))
     } finally { setLoading(false) }
   }
 

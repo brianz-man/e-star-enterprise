@@ -1,0 +1,357 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+// E-Star Enterprise — Production Prisma Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  CUSTOMER
+  ADMIN
+  SUPERADMIN
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum PayProvider {
+  MPESA
+  CARD
+}
+
+enum PayStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  passwordHash  String
+  firstName     String
+  lastName      String
+  phone         String?
+  role          Role           @default(CUSTOMER)
+  isVerified    Boolean        @default(false)
+  isActive      Boolean        @default(true)
+  isDeleted     Boolean        @default(false)
+  deletedAt     DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  refreshTokens RefreshToken[]
+  verificationTokens VerificationToken[] @relation("VerificationTokens")
+  passwordResetTokens PasswordResetToken[] @relation("PasswordResetTokens")
+  addresses     Address[]
+  orders        Order[]
+  cart          Cart?
+  reviews       Review[]
+
+  @@index([email])
+  @@index([isActive])
+  @@index([phone])
+  @@map("users")
+}
+
+model Address {
+  id         String   @id @default(uuid())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  label      String   @default("Home")
+  firstName  String
+  lastName   String
+  phone      String
+  county     String
+  town       String
+  street     String
+  postalCode String?
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  orders Order[]
+
+  @@index([userId])
+  @@map("addresses")
+}
+
+model Brand {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  slug      String   @unique
+  logoUrl   String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  products Product[]
+
+  @@index([slug])
+  @@map("brands")
+}
+
+model Category {
+  id          String     @id @default(uuid())
+  name        String     @unique
+  slug        String     @unique
+  description String?
+  imageUrl    String?
+  parentId    String?
+  parent      Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryTree")
+  isActive    Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+
+  products Product[]
+
+  @@index([slug])
+  @@map("categories")
+}
+
+model Product {
+  id           String   @id @default(uuid())
+  name         String
+  slug         String   @unique
+  description  String
+  sku          String   @unique
+  price        Decimal  @db.Decimal(10, 2)
+  comparePrice Decimal? @db.Decimal(10, 2)
+  stockQty     Int      @default(0)
+  lowStockAt   Int      @default(5)
+  isActive     Boolean  @default(true)
+  isFeatured   Boolean  @default(false)
+  isDeleted    Boolean  @default(false)
+  deletedAt    DateTime?
+  weight       Float?
+  brand        Brand    @relation(fields: [brandId], references: [id])
+  brandId      String
+  category     Category @relation(fields: [categoryId], references: [id])
+  categoryId   String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  images        ProductImage[]
+  compatibility PrinterCompatibility[]
+  orderItems    OrderItem[]
+  cartItems     CartItem[]
+  reviews       Review[]
+
+  @@index([slug])
+  @@index([brandId])
+  @@index([categoryId])
+  @@index([isActive])
+  @@index([isFeatured])
+  @@index([createdAt])
+  @@map("products")
+}
+
+model ProductImage {
+  id        String   @id @default(uuid())
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+  url       String
+  publicId  String
+  isPrimary Boolean  @default(false)
+  altText   String?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+  @@map("product_images")
+}
+
+model PrinterCompatibility {
+  id            String  @id @default(uuid())
+  product       Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId     String
+  brand         String
+  printerModel  String
+  printerSeries String?
+
+  @@unique([productId, printerModel])
+  @@map("printer_compatibility")
+}
+
+model Cart {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items CartItem[]
+
+  @@map("carts")
+}
+
+model CartItem {
+  id        String   @id @default(uuid())
+  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  cartId    String
+  product   Product  @relation(fields: [productId], references: [id])
+  productId String
+  quantity  Int      @default(1)
+  addedAt   DateTime @default(now())
+
+  @@unique([cartId, productId])
+  @@map("cart_items")
+}
+
+model Order {
+  id              String      @id @default(uuid())
+  orderNumber     String      @unique
+  user            User        @relation(fields: [userId], references: [id])
+  userId          String
+  address         Address?    @relation(fields: [addressId], references: [id])
+  addressId       String?
+  deliveryAddress Json
+  status          OrderStatus @default(PENDING)
+  subtotal        Decimal     @db.Decimal(10, 2)
+  deliveryFee     Decimal     @default(0) @db.Decimal(10, 2)
+  totalAmount     Decimal     @db.Decimal(10, 2)
+  notes           String?
+  isDeleted       Boolean     @default(false)
+  deletedAt       DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  items   OrderItem[]
+  payment Payment?        // ← One-to-one: one order, one primary payment
+
+  paymentEvents PaymentEvent[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String  @id @default(uuid())
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId   String
+  product   Product @relation(fields: [productId], references: [id])
+  productId String
+  name      String
+  sku       String
+  quantity  Int
+  price     Decimal @db.Decimal(10, 2)
+  total     Decimal @db.Decimal(10, 2)
+
+  @@index([orderId])
+  @@index([productId])
+  @@map("order_items")
+}
+
+// ─── Payment: ONE-TO-ONE with Order ──────────────────────────────────────────
+// orderId is @unique — enforces single primary payment per order.
+// Retries use the same Payment record (status reset to PENDING, new checkoutRequestId).
+model Payment {
+  id                String      @id @default(uuid())
+  order             Order       @relation(fields: [orderId], references: [id])
+  orderId           String      @unique    // ← FIXED: was missing @unique
+  provider          PayProvider @default(MPESA)
+  status            PayStatus   @default(PENDING)
+  amount            Decimal     @db.Decimal(10, 2)
+  phone             String
+  mpesaReceiptNo    String?
+  checkoutRequestId String?
+  merchantRequestId String?
+  resultCode        String?
+  resultDesc        String?
+  paidAt            DateTime?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  @@index([checkoutRequestId])
+  @@map("payments")
+}
+
+// ─── Payment Audit Log ────────────────────────────────────────────────────────
+// Every M-Pesa callback payload stored for dispute resolution
+model PaymentEvent {
+  id        String   @id @default(uuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id])
+  eventType String   // "STK_PUSH_INITIATED" | "CALLBACK_RECEIVED" | etc.
+  payload   Json
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+  @@map("payment_events")
+}
+
+model Review {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  product   Product  @relation(fields: [productId], references: [id])
+  productId String
+  rating    Int
+  title     String?
+  body      String?
+  isVisible Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+  @@index([productId])
+  @@map("reviews")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique   // ← Store HASH not raw token (security)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([revoked])
+}
+
+model VerificationToken {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation("VerificationTokens", fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("verification_tokens")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation("PasswordResetTokens", fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
+}
