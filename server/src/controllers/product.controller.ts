@@ -1,8 +1,10 @@
 import { Request, Response } from "express";
+import fs from "fs/promises";
 import { prisma } from "../config/db";
 import { asyncHandler } from "../utils/asyncHandler";
 import { ApiError } from "../utils/ApiError";
 import { slugify } from "./../utils/slugify";
+import logger from "../utils/logger";
 import {
   uploadProductImage,
   deleteProductImage,
@@ -24,9 +26,9 @@ export const getProducts = asyncHandler(async (req: Request, res: Response) => {
     brand:    raw.brand as string | undefined,
     category: raw.category as string | undefined,
     search:   raw.search as string | undefined,
-    featured: raw.featured === undefined ? undefined : raw.featured === 'true',
-    minPrice: raw.minPrice ? new (require('@prisma/client').Prisma.Decimal)(raw.minPrice as string) : undefined,
-    maxPrice: raw.maxPrice ? new (require('@prisma/client').Prisma.Decimal)(raw.maxPrice as string) : undefined,
+    featured: raw.featured === undefined ? undefined : Boolean(raw.featured),
+    minPrice: raw.minPrice ? new Prisma.Decimal(raw.minPrice as string) : undefined,
+    maxPrice: raw.maxPrice ? new Prisma.Decimal(raw.maxPrice as string) : undefined,
   };
 
   const where: Prisma.ProductWhereInput = {
@@ -207,19 +209,33 @@ export const uploadImage = asyncHandler(async (req: Request, res: Response) => {
   });
   if (!product) throw ApiError.notFound("Product not found");
 
-  const { url, publicId } = await uploadProductImage(
-    req.file.path,
-    product.sku,
-  );
-  const isPrimary =
-    (await prisma.productImage.count({ where: { productId: product.id } })) ===
-    0;
+  try {
+    const { url, publicId } = await uploadProductImage(
+      req.file.path,
+      product.sku,
+    );
+    const isPrimary =
+      (await prisma.productImage.count({
+        where: { productId: product.id },
+      })) === 0;
 
-  const image = await prisma.productImage.create({
-    data: { productId: product.id, url, publicId, isPrimary },
-  });
+    const image = await prisma.productImage.create({
+      data: { productId: product.id, url, publicId, isPrimary },
+    });
 
-  res.status(201).json({ success: true, data: image });
+    res.status(201).json({ success: true, data: image });
+  } finally {
+    // Always remove the Multer temp file from disk, whether the upload
+    // succeeded or failed, to prevent orphaned files from accumulating.
+    try {
+      await fs.unlink(req.file.path);
+    } catch (cleanupErr) {
+      logger.warn(
+        { path: req.file.path, err: cleanupErr },
+        "Could not delete temp upload file",
+      );
+    }
+  }
 });
 
 export const deleteImage = asyncHandler(async (req: Request, res: Response) => {

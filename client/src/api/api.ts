@@ -2,14 +2,21 @@ import axios, { type AxiosInstance, type InternalAxiosRequestConfig } from 'axio
 import { useAuthStore } from '@/store/auth'
 
 let isRefreshing = false
-let queue: Array<(token: string) => void> = []
+let queue: Array<{ resolve: (token: string) => void; reject: (err: unknown) => void }> = []
 
-const drainQueue = (token: string) => { queue.forEach(cb => cb(token)); queue = [] }
+const drainQueue = (token: string) => {
+  queue.forEach(({ resolve }) => resolve(token))
+  queue = []
+}
+const rejectQueue = (err: unknown) => {
+  queue.forEach(({ reject }) => reject(err))
+  queue = []
+}
 
 export const api: AxiosInstance = axios.create({
   baseURL: '/api/v1',
   withCredentials: true,
-  headers: { 'Content-Type': 'application/json' },
+  headers: { 'Content-Type': undefined  },
 })
 
 // ── Request: attach Bearer token ────────────────────────────────────────────
@@ -29,10 +36,19 @@ api.interceptors.response.use(
     original._retry = true
 
     if (isRefreshing) {
-      return new Promise(resolve => {
-        queue.push(token => {
-          original.headers.Authorization = `Bearer ${token}`
-          resolve(api(original))
+      // Queue this request behind the in-flight refresh. Storing both
+      // resolve AND reject (not just resolve) is what makes this safe: if
+      // the refresh call itself fails below, rejectQueue() settles every
+      // queued promise with the error instead of leaving them pending
+      // forever — otherwise, whatever component fired this request would
+      // be stuck "loading" indefinitely with no error and no data.
+      return new Promise((resolve, reject) => {
+        queue.push({
+          resolve: token => {
+            original.headers.Authorization = `Bearer ${token}`
+            resolve(api(original))
+          },
+          reject,
         })
       })
     }
@@ -49,8 +65,9 @@ api.interceptors.response.use(
       original.headers.Authorization = `Bearer ${newToken}`
       drainQueue(newToken)
       return api(original)
-    } catch {
+    } catch (refreshErr) {
       useAuthStore.getState().clearAuth()
+      rejectQueue(refreshErr)
       window.location.href = '/login'
       return Promise.reject(err)
     } finally {

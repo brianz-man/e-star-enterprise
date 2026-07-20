@@ -18,17 +18,20 @@ const cartInclude = {
 } as const;
 
 const getOrCreateCart = async (userId: string) => {
-  let cart = await prisma.cart.findUnique({
+  // upsert is atomic at the DB level, closing the race window that existed
+  // with a separate find-then-create: two concurrent first-requests for the
+  // same user could otherwise both see "no cart" and both try to create one,
+  // with the loser hitting a unique constraint error instead of just getting
+  // the cart that now exists.
+  await prisma.cart.upsert({
+    where: { userId },
+    update: {},
+    create: { userId },
+  });
+  const cart = await prisma.cart.findUnique({
     where: { userId },
     include: cartInclude,
   });
-  if (!cart) {
-    await prisma.cart.create({ data: { userId } });
-    cart = await prisma.cart.findUnique({
-      where: { userId },
-      include: cartInclude,
-    });
-  }
   return cart!;
 };
 

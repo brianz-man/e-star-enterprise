@@ -50,36 +50,36 @@ export const useCartStore = create<CartState>((set, get) => ({
     set({ isLoading: true })
     try   { set({ cart: await cartApi.add(productId, quantity), isOpen: true }) }
     catch (e) {
-      set({ isLoading: false })
       throw e // Let component handle the error with toast
     }
+    finally { set({ isLoading: false }) }
   },
 
   updateQuantity: async (itemId, quantity) => {
     set({ isLoading: true })
     try   { set({ cart: await cartApi.update(itemId, quantity) }) }
     catch (e) {
-      set({ isLoading: false })
       throw e
     }
+    finally { set({ isLoading: false }) }
   },
 
   removeItem: async (itemId) => {
     set({ isLoading: true })
     try   { set({ cart: await cartApi.remove(itemId) }) }
     catch (e) {
-      set({ isLoading: false })
       throw e
     }
+    finally { set({ isLoading: false }) }
   },
 
   clearCart: async () => {
     set({ isLoading: true })
     try   { await cartApi.clear(); set({ cart: null }) }
     catch (e) {
-      set({ isLoading: false })
       throw e
     }
+    finally { set({ isLoading: false }) }
   },
 
   resetCart: () => set({ cart: null, isOpen: false }),
