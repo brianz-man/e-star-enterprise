@@ -40,60 +40,87 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
 
   const totalAmountDecimal = subtotalDecimal.add(deliveryFeeDecimal);
 
-  const order = await prisma.$transaction(async (tx) => {
-    // Re-check stock inside transaction to prevent race conditions
-    for (const item of cart.items) {
-      const fresh = await tx.product.findUnique({
-        where: { id: item.productId },
-        select: { stockQty: true, isActive: true, isDeleted: true },
-      });
-      if (!fresh || !fresh.isActive || fresh.isDeleted)
-        throw ApiError.badRequest(`Product no longer available`);
-      if (fresh.stockQty < item.quantity)
-        throw ApiError.badRequest(
-          `Insufficient stock. Only ${fresh.stockQty} left.`,
-        );
-    }
+  const order = await createOrderWithRetry(async (orderNumber) => {
+    return prisma.$transaction(async (tx) => {
+      // Re-check stock inside transaction to prevent race conditions
+      for (const item of cart.items) {
+        const fresh = await tx.product.findUnique({
+          where: { id: item.productId },
+          select: { stockQty: true, isActive: true, isDeleted: true },
+        });
+        if (!fresh || !fresh.isActive || fresh.isDeleted)
+          throw ApiError.badRequest(`Product no longer available`);
+        if (fresh.stockQty < item.quantity)
+          throw ApiError.badRequest(
+            `Insufficient stock. Only ${fresh.stockQty} left.`,
+          );
+      }
 
-    const newOrder = await tx.order.create({
-      data: {
-        orderNumber: generateOrderNumber(),
-        userId: req.user!.userId,
-        addressId: addressId || null,
-        deliveryAddress,
-        subtotal: subtotalDecimal,
-        deliveryFee: deliveryFeeDecimal,
-        totalAmount: totalAmountDecimal,
-        notes,
-        items: {
-          create: cart.items.map((i) => ({
-            productId: i.productId,
-            name: i.product.name,
-            sku: i.product.sku,
-            quantity: i.quantity,
-            price: i.product.price,
-            total: new Prisma.Decimal(i.product.price).mul(i.quantity),
-          })),
+      const newOrder = await tx.order.create({
+        data: {
+          orderNumber,
+          userId: req.user!.userId,
+          addressId: addressId || null,
+          deliveryAddress,
+          subtotal: subtotalDecimal,
+          deliveryFee: deliveryFeeDecimal,
+          totalAmount: totalAmountDecimal,
+          notes,
+          items: {
+            create: cart.items.map((i) => ({
+              productId: i.productId,
+              name: i.product.name,
+              sku: i.product.sku,
+              quantity: i.quantity,
+              price: i.product.price,
+              total: new Prisma.Decimal(i.product.price).mul(i.quantity),
+            })),
+          },
         },
-      },
-      include: { items: true },
-    });
-
-    // Decrement stock atomically
-    for (const item of cart.items) {
-      await tx.product.update({
-        where: { id: item.productId },
-        data: { stockQty: { decrement: item.quantity } },
+        include: { items: true },
       });
-    }
 
-    await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
+      // Decrement stock atomically
+      for (const item of cart.items) {
+        await tx.product.update({
+          where: { id: item.productId },
+          data: { stockQty: { decrement: item.quantity } },
+        });
+      }
 
-    return newOrder;
+      await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
+
+      return newOrder;
+    });
   });
 
   res.status(201).json({ success: true, data: order });
 });
+
+/**
+ * Runs `attempt` with a freshly generated order number, retrying a small,
+ * bounded number of times if it fails specifically because the order number
+ * collided with an existing one (Prisma P2002 on the unique orderNumber
+ * column). Any other error propagates immediately without retrying.
+ */
+async function createOrderWithRetry<T>(
+  attempt: (orderNumber: string) => Promise<T>,
+  maxAttempts = 3,
+): Promise<T> {
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      return await attempt(generateOrderNumber());
+    } catch (err) {
+      const isOrderNumberCollision =
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === "P2002" &&
+        (err.meta?.target as string[] | undefined)?.includes("orderNumber");
+      if (!isOrderNumberCollision || i === maxAttempts - 1) throw err;
+    }
+  }
+  // Unreachable, but keeps TypeScript satisfied
+  throw new Error("Failed to generate a unique order number");
+}
 
 export const getMyOrders = asyncHandler(async (req: Request, res: Response) => {
   const orders = await prisma.order.findMany({

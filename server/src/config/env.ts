@@ -12,6 +12,7 @@ export const env = {
   nodeEnv: process.env.NODE_ENV || "development",
   clientUrl: (process.env.CLIENT_URL || "http://localhost:5173").split(",").map(url => url.trim()),
   isDev: process.env.NODE_ENV !== "production",
+  isProd: process.env.NODE_ENV === "production",
 
   jwt: {
     secret: required("JWT_SECRET"),

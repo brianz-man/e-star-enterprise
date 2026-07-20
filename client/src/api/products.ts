@@ -20,9 +20,16 @@ export const productsApi = {
   uploadImage: (id: string, file: File) => {
     const form = new FormData()
     form.append('image', file)
+    // IMPORTANT: this axios instance sets a default 'Content-Type: application/json'
+    // header (see api.ts). When axios sees that JSON content type on a FormData
+    // body, it silently stringifies the FormData into JSON instead of sending a
+    // real multipart request — the file is lost and the server gets no file at
+    // all. Explicitly unsetting Content-Type here tells axios to skip that JSON
+    // conversion and let the browser generate the correct
+    // 'multipart/form-data; boundary=...' header instead.
     return api.post<ApiOk<{ id: string; url: string }>>(
       `/products/${id}/images`, form,
-      { headers: { 'Content-Type': 'multipart/form-data' } },
+      { headers: { 'Content-Type': undefined } },
     ).then(r => r.data.data)
   },
 

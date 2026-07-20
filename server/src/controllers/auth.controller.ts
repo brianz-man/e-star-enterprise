@@ -19,6 +19,10 @@ import { env } from "../config/env";
 import { asyncHandler } from "../utils/asyncHandler";
 import { ApiError } from "../utils/ApiError";
 import { RegisterInput, LoginInput } from "../validators/auth.validator";
+import {
+  sendVerificationEmail,
+  sendPasswordResetEmail,
+} from "../services/email.service";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -216,16 +220,6 @@ export const getMe = asyncHandler(async (req: Request, res: Response) => {
 /** Generate a 32-byte verification token */
 const generateVerificationToken = () => crypto.randomBytes(32).toString("hex");
 
-/** Send verification email — TODO: integrate with email service */
-const sendVerificationEmail = async (
-  email: string,
-  firstName: string,
-  token: string,
-) => {
-  // // TODO: Replace with actual email service (SendGrid, Nodemailer, etc.)
-  // console.log(`📧 Verification email to ${email}: http://localhost:5173/verify?token=${token}`);
-};
-
 export const sendVerificationEmail_handler = asyncHandler(
   async (req: Request, res: Response) => {
     const user = await prisma.user.findUnique({
@@ -278,17 +272,6 @@ export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
 
 // ─── Password Reset ───────────────────────────────────────────────────────────
 
-/** Send password reset email — TODO: integrate with email service */
-const sendPasswordResetEmail = async (
-  email: string,
-  firstName: string,
-  token: string,
-) => {
-  // TODO: Replace with actual email service
-  console.log(
-    `📧 Password reset email to ${email}: http://localhost:5173/reset-password?token=${token}`,
-  );
-};
 
 export const forgotPassword = asyncHandler(
   async (req: Request, res: Response) => {
@@ -346,6 +329,14 @@ export const resetPassword = asyncHandler(async (req: Request, res: Response) =>
   await prisma.user.update({
     where: { id: tokenRecord.userId },
     data: { passwordHash },
+  });
+
+  // Invalidate all existing sessions. If the password was reset because it
+  // was compromised, any refresh token an attacker already holds must stop
+  // working — otherwise they keep access even after the password changes.
+  await prisma.refreshToken.updateMany({
+    where: { userId: tokenRecord.userId, revoked: false },
+    data: { revoked: true },
   });
 
   // Clean up token
