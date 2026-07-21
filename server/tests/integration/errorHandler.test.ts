@@ -1,9 +1,3 @@
-/**
- * tests/integration/errorHandler.test.ts
- *
- * Integration tests for errorHandler and notFoundHandler.
- * Mounts them on a minimal Express app via supertest.
- */
 import { describe, it, expect, vi, beforeAll } from "vitest";
 import request from "supertest";
 import express, { Express, Request, Response, NextFunction } from "express";
@@ -20,7 +14,7 @@ import {
 } from "../../src/middlewares/errorHandler";
 import { ApiError } from "./../../src/utils/ApiError";
 
-// ─── App factory ──────────────────────────────────────────────────────────────
+//  App factory
 
 const buildApp = (
   routeFn: (req: Request, res: Response, next: NextFunction) => void,
@@ -33,7 +27,7 @@ const buildApp = (
   return app;
 };
 
-// ─── ApiError handling ────────────────────────────────────────────────────────
+//  ApiError handling
 
 describe("errorHandler — ApiError", () => {
   it("returns the correct status code and body for badRequest", async () => {
@@ -95,7 +89,7 @@ describe("errorHandler — ApiError", () => {
   });
 });
 
-// ─── Prisma error handling ────────────────────────────────────────────────────
+//  Prisma error handling
 
 describe("errorHandler — Prisma errors", () => {
   it("returns 409 for P2002 (unique constraint)", async () => {
@@ -130,7 +124,7 @@ describe("errorHandler — Prisma errors", () => {
   });
 });
 
-// ─── Unknown errors ───────────────────────────────────────────────────────────
+//  Unknown errors
 
 describe("errorHandler — unknown errors", () => {
   it("returns 500 with message exposed in dev mode", async () => {
@@ -153,7 +147,7 @@ describe("errorHandler — unknown errors", () => {
   });
 });
 
-// ─── notFoundHandler ──────────────────────────────────────────────────────────
+//  notFoundHandler
 
 describe("notFoundHandler", () => {
   let app: Express;

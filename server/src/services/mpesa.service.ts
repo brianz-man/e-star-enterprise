@@ -13,12 +13,6 @@ const BASE_URL =
 let cachedToken: string | null = null;
 let tokenExpiryTime: number = 0; // Epoch timestamp in ms
 
-// Dedupes concurrent token fetches. Node is single-threaded but not
-// single-request-at-a-time: if two checkouts land in the same tick while
-// the cache is empty/expired, both would otherwise see `cachedToken` as
-// null and both fire a fresh OAuth request — doubling load on Safaricom's
-// auth endpoint at exactly the moment traffic (and WAF sensitivity) is
-// highest. Every caller during a refresh awaits this same promise instead.
 let pendingTokenRequest: Promise<string> | null = null;
 
 // Safaricom's endpoints sit behind Incapsula/Imperva bot protection.
@@ -32,10 +26,7 @@ const daraja = axios.create({
   timeout: 15_000,
 });
 
-/**
- * Extracts a human-readable message from a failed Safaricom request.
- * Prevents raw HTML (like WAF blocks) from dumping into system logs.
- */
+/** Prevents raw HTML (like WAF blocks) from dumping into system logs. */
 const describeMpesaError = (err: any): string => {
   const status = err?.response?.status;
   const contentType = err?.response?.headers?.["content-type"] as
@@ -67,7 +58,7 @@ const describeMpesaError = (err: any): string => {
 // ---------------------------------------------------------
 const getAccessToken = async (): Promise<string> => {
   const now = Date.now();
-  
+
   // If we have a valid token that isn't expiring in the next 2 minutes, reuse it
   if (cachedToken && tokenExpiryTime > now + 120_000) {
     return cachedToken;
@@ -82,7 +73,7 @@ const getAccessToken = async (): Promise<string> => {
       `${BASE_URL}/oauth/v1/generate?grant_type=client_credentials`,
       { headers: { Authorization: `Basic ${credentials}` } },
     );
-    
+
     // Save token and parse expiry (typically 3600 seconds, convert to ms)
     cachedToken = data.access_token as string;
     const expiresInSeconds = parseInt(data.expires_in, 10) || 3600;

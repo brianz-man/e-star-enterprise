@@ -1,8 +1,5 @@
 export function kes(amount: number | string) {
-  const value =
-    typeof amount === "string"
-      ? Number(amount)
-      : amount;
+  const value = typeof amount === "string" ? Number(amount) : amount;
 
   return new Intl.NumberFormat("en-KE", {
     style: "currency",

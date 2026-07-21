@@ -1,15 +1,3 @@
-/**
- * auth.controller.ts
- *
- * REQUIRES: schema.prisma migration applied + `npx prisma generate` run.
- *
- * The new RefreshToken model uses `tokenHash` (SHA-256 of raw token).
- * The User model has `isDeleted` soft-delete field.
- * Both are defined in the fixed schema.prisma — run the migration first.
- *
- *   npx prisma migrate dev --name production_hardening
- *   (or for existing prod DB: npx prisma migrate deploy)
- */
 import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
@@ -24,7 +12,7 @@ import {
   sendPasswordResetEmail,
 } from "../services/email.service";
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+//  Helpers
 
 /** SHA-256 of the raw token — what we store in DB */
 const hashToken = (raw: string) =>
@@ -51,7 +39,7 @@ const saveRefreshToken = (userId: string, raw: string) =>
     },
   });
 
-// ─── Register ─────────────────────────────────────────────────────────────────
+//  Register
 
 export const register = asyncHandler(async (req: Request, res: Response) => {
   const { firstName, lastName, email, password, phone } =
@@ -71,7 +59,6 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
       lastName: true,
       email: true,
       role: true,
-      // Note: `isDeleted` is available after migration + prisma generate
     },
   });
 
@@ -88,7 +75,7 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
   res.status(201).json({ success: true, accessToken, user });
 });
 
-// ─── Login ────────────────────────────────────────────────────────────────────
+//  Login
 
 export const login = asyncHandler(async (req: Request, res: Response) => {
   const { email, password } = req.body as LoginInput;
@@ -127,7 +114,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   });
 });
 
-// ─── Refresh (token rotation) ─────────────────────────────────────────────────
+//  Refresh (token rotation)
 
 export const refresh = asyncHandler(async (req: Request, res: Response) => {
   const rawToken = req.cookies?.refreshToken as string | undefined;
@@ -136,7 +123,7 @@ export const refresh = asyncHandler(async (req: Request, res: Response) => {
   // Look up by hash — raw token is never stored in DB
   const stored = await prisma.refreshToken.findUnique({
     where: { tokenHash: hashToken(rawToken) },
-    include: { user: true }, // `user` relation available after migration
+    include: { user: true },
   });
 
   if (!stored || stored.revoked || stored.expiresAt < new Date()) {
@@ -174,7 +161,7 @@ export const refresh = asyncHandler(async (req: Request, res: Response) => {
   res.json({ success: true, accessToken });
 });
 
-// ─── Logout ───────────────────────────────────────────────────────────────────
+//  Logout
 
 export const logout = asyncHandler(async (req: Request, res: Response) => {
   const rawToken = req.cookies?.refreshToken as string | undefined;
@@ -194,7 +181,7 @@ export const logout = asyncHandler(async (req: Request, res: Response) => {
   res.json({ success: true, message: "Logged out" });
 });
 
-// ─── Get current user ─────────────────────────────────────────────────────────
+//  Get current user
 
 export const getMe = asyncHandler(async (req: Request, res: Response) => {
   const user = await prisma.user.findUnique({
@@ -215,7 +202,7 @@ export const getMe = asyncHandler(async (req: Request, res: Response) => {
   res.json({ success: true, user });
 });
 
-// ─── Email Verification ───────────────────────────────────────────────────────
+//  Email Verification
 
 /** Generate a 32-byte verification token */
 const generateVerificationToken = () => crypto.randomBytes(32).toString("hex");
@@ -270,8 +257,7 @@ export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
   res.json({ success: true, message: "Email verified successfully" });
 });
 
-// ─── Password Reset ───────────────────────────────────────────────────────────
-
+//  Password Reset
 
 export const forgotPassword = asyncHandler(
   async (req: Request, res: Response) => {
@@ -306,42 +292,40 @@ export const forgotPassword = asyncHandler(
   },
 );
 
-export const resetPassword = asyncHandler(async (req: Request, res: Response) => {
-  const { token, password } = req.body as { token: string; password: string };
+export const resetPassword = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { token, password } = req.body as { token: string; password: string };
 
-  if (!token) throw ApiError.badRequest("Reset token required");
-  if (!password || password.length < 8)
-    throw ApiError.badRequest("Password must be at least 8 characters");
+    if (!token) throw ApiError.badRequest("Reset token required");
+    if (!password || password.length < 8)
+      throw ApiError.badRequest("Password must be at least 8 characters");
 
-  const tokenRecord = await prisma.passwordResetToken.findUnique({
-    where: { tokenHash: hashToken(token) },
-    include: { user: true },
-  });
+    const tokenRecord = await prisma.passwordResetToken.findUnique({
+      where: { tokenHash: hashToken(token) },
+      include: { user: true },
+    });
 
-  if (!tokenRecord) throw ApiError.badRequest("Invalid or expired token");
-  if (tokenRecord.expiresAt < new Date())
-    throw ApiError.badRequest("Token expired");
+    if (!tokenRecord) throw ApiError.badRequest("Invalid or expired token");
+    if (tokenRecord.expiresAt < new Date())
+      throw ApiError.badRequest("Token expired");
 
-  // Hash new password
-  const passwordHash = await bcrypt.hash(password, env.bcryptRounds);
+    // Hash new password
+    const passwordHash = await bcrypt.hash(password, env.bcryptRounds);
 
-  // Update password
-  await prisma.user.update({
-    where: { id: tokenRecord.userId },
-    data: { passwordHash },
-  });
+    // Update password
+    await prisma.user.update({
+      where: { id: tokenRecord.userId },
+      data: { passwordHash },
+    });
 
-  // Invalidate all existing sessions. If the password was reset because it
-  // was compromised, any refresh token an attacker already holds must stop
-  // working — otherwise they keep access even after the password changes.
-  await prisma.refreshToken.updateMany({
-    where: { userId: tokenRecord.userId, revoked: false },
-    data: { revoked: true },
-  });
+    await prisma.refreshToken.updateMany({
+      where: { userId: tokenRecord.userId, revoked: false },
+      data: { revoked: true },
+    });
 
-  // Clean up token
-  await prisma.passwordResetToken.delete({ where: { id: tokenRecord.id } });
+    // Clean up token
+    await prisma.passwordResetToken.delete({ where: { id: tokenRecord.id } });
 
-  res.json({ success: true, message: "Password reset successfully" });
-});
-
+    res.json({ success: true, message: "Password reset successfully" });
+  },
+);

@@ -129,10 +129,6 @@ export const mpesaCallback = asyncHandler(
         ?.Value as string;
       const paidAmount = meta.find((m) => m.Name === "Amount")?.Value;
 
-      // Cross-check the amount M-Pesa says was paid against what we actually
-      // charged for this order. Without this, a forged or replayed callback
-      // with the right CheckoutRequestID could mark an order SUCCESS for an
-      // arbitrary (e.g. lower) amount.
       const expected = Number(payment.amount);
       const got = Number(paidAmount);
       if (!paidAmount || Number.isNaN(got) || Math.abs(got - expected) > 0.5) {
@@ -144,13 +140,19 @@ export const mpesaCallback = asyncHandler(
             resultDesc: `Amount mismatch: expected ${expected}, callback reported ${paidAmount}`,
           },
         });
-        await prisma.paymentEvent.create({
-          data: {
-            orderId: payment.orderId,
-            eventType: "CALLBACK_AMOUNT_MISMATCH",
-            payload: { expected, got: paidAmount, checkoutRequestId: CheckoutRequestID },
-          },
-        }).catch(() => {});
+        await prisma.paymentEvent
+          .create({
+            data: {
+              orderId: payment.orderId,
+              eventType: "CALLBACK_AMOUNT_MISMATCH",
+              payload: {
+                expected,
+                got: paidAmount,
+                checkoutRequestId: CheckoutRequestID,
+              },
+            },
+          })
+          .catch(() => {});
 
         res.json({ ResultCode: 0, ResultDesc: "Accepted" });
         return;

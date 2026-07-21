@@ -1,7 +1,3 @@
-/**
- * Normalise a Kenyan phone number to the 2547XXXXXXXX format
- * required by Safaricom Daraja API.
- */
 export const formatPhone = (phone: string): string => {
   const digits = phone.replace(/\D/g, "");
 

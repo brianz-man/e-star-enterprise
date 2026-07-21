@@ -2,10 +2,6 @@ import { Request, Response, NextFunction } from "express";
 import { randomUUID } from "crypto";
 import logger from "../utils/logger";
 
-/**
- * Attaches a unique requestId to every request and logs
- * method, path, status code, and response time.
- */
 export const requestLogger = (
   req: Request,
   res: Response,

@@ -1,8 +1,3 @@
-/**
- * tests/unit/utils/asyncHandler.test.ts
- *
- * Verifies that asyncHandler correctly forwards Promise rejections to next().
- */
 import { describe, it, expect, vi } from "vitest";
 import { Request, Response, NextFunction } from "express";
 import { asyncHandler } from "../.././src/utils/asyncHandler";

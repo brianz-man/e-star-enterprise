@@ -18,11 +18,6 @@ const cartInclude = {
 } as const;
 
 const getOrCreateCart = async (userId: string) => {
-  // upsert is atomic at the DB level, closing the race window that existed
-  // with a separate find-then-create: two concurrent first-requests for the
-  // same user could otherwise both see "no cart" and both try to create one,
-  // with the loser hitting a unique constraint error instead of just getting
-  // the cart that now exists.
   await prisma.cart.upsert({
     where: { userId },
     update: {},
@@ -36,11 +31,13 @@ const getOrCreateCart = async (userId: string) => {
 };
 
 const calcTotal = (cart: Awaited<ReturnType<typeof getOrCreateCart>>) => {
-  return cart.items.reduce((sum, i) => {
-    const price = new Decimal(i.product.price);
-    const itemTotal = price.times(i.quantity);
-    return sum.plus(itemTotal);
-  }, new Decimal(0)).toNumber();
+  return cart.items
+    .reduce((sum, i) => {
+      const price = new Decimal(i.product.price);
+      const itemTotal = price.times(i.quantity);
+      return sum.plus(itemTotal);
+    }, new Decimal(0))
+    .toNumber();
 };
 
 export const getCart = asyncHandler(async (req: Request, res: Response) => {

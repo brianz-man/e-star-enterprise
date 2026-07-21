@@ -20,7 +20,11 @@ import {
 const router = Router();
 
 // Multer configuration with file validation
-const fileFilter = (_req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+const fileFilter = (
+  _req: any,
+  file: Express.Multer.File,
+  cb: multer.FileFilterCallback,
+) => {
   const allowedMimes = ["image/jpeg", "image/png", "image/webp"];
   if (allowedMimes.includes(file.mimetype)) {
     cb(null, true);
