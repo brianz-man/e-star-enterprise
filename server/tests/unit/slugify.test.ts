@@ -1,6 +1,3 @@
-/**
- * tests/unit/utils/slugify.test.ts
- */
 import { describe, it, expect } from "vitest";
 import { slugify } from "../../src/utils/slugify";
 

@@ -1,9 +1,3 @@
-/**
- * tests/unit/validators/validators.test.ts
- *
- * Tests all Zod schemas: auth, cart, order, product.
- * Uses schema.safeParse() so we can inspect errors without throwing.
- */
 import { describe, it, expect } from "vitest";
 import { ZodSafeParseResult, ZodSafeParseError } from "zod";
 import {

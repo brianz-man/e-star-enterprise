@@ -10,7 +10,9 @@ const required = (key: string): string => {
 export const env = {
   port: parseInt(process.env.PORT || "5000", 10),
   nodeEnv: process.env.NODE_ENV || "development",
-  clientUrl: (process.env.CLIENT_URL || "http://localhost:5173").split(",").map(url => url.trim()),
+  clientUrl: (process.env.CLIENT_URL || "http://localhost:5173")
+    .split(",")
+    .map((url) => url.trim()),
   isDev: process.env.NODE_ENV !== "production",
   isProd: process.env.NODE_ENV === "production",
 

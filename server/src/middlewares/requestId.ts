@@ -14,6 +14,6 @@ export const requestId = (
   _res: Response,
   next: NextFunction,
 ): void => {
-  req.requestId = req.headers["x-request-id"] as string || randomUUID();
+  req.requestId = (req.headers["x-request-id"] as string) || randomUUID();
   next();
 };

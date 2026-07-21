@@ -93,7 +93,11 @@ export const getAllOrders = asyncHandler(
     res.json({
       success: true,
       data: orders,
-      meta: { total, page: validated.page, pages: Math.ceil(total / validated.limit) },
+      meta: {
+        total,
+        page: validated.page,
+        pages: Math.ceil(total / validated.limit),
+      },
     });
   },
 );
@@ -146,7 +150,11 @@ export const getAllUsers = asyncHandler(async (req: Request, res: Response) => {
   res.json({
     success: true,
     data: users,
-    meta: { total, page: validated.page, pages: Math.ceil(total / validated.limit) },
+    meta: {
+      total,
+      page: validated.page,
+      pages: Math.ceil(total / validated.limit),
+    },
   });
 });
 
@@ -218,7 +226,11 @@ export const getAllProducts = asyncHandler(
     res.json({
       success: true,
       data: products,
-      meta: { total, page: validated.page, pages: Math.ceil(total / validated.limit) },
+      meta: {
+        total,
+        page: validated.page,
+        pages: Math.ceil(total / validated.limit),
+      },
     });
   },
 );

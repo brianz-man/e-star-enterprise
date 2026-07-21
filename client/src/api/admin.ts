@@ -1,4 +1,4 @@
-import { api } from './api'
+import { api } from "./api";
 import type {
   AdminCatalog,
   AdminOrder,
@@ -9,54 +9,74 @@ import type {
   InventoryProduct,
   OrderStatus,
   Product,
-} from '@/types'
+} from "@/types";
 
 interface DashboardData {
-  stats: DashboardStats
-  recentOrders: AdminOrder[]
-  lowStock: { id: string; name: string; sku: string; stockQty: number; brand: { name: string } }[]
+  stats: DashboardStats;
+  recentOrders: AdminOrder[];
+  lowStock: {
+    id: string;
+    name: string;
+    sku: string;
+    stockQty: number;
+    brand: { name: string };
+  }[];
 }
 
 export interface ProductPayload {
-  name: string
-  description: string
-  sku: string
-  price: number
-  comparePrice?: number
-  stockQty: number
-  lowStockAt: number
-  brandId: string
-  categoryId: string
-  isFeatured: boolean
-  weight?: number
-  compatibility: { brand: string; printerModel: string; printerSeries?: string }[]
+  name: string;
+  description: string;
+  sku: string;
+  price: number;
+  comparePrice?: number;
+  stockQty: number;
+  lowStockAt: number;
+  brandId: string;
+  categoryId: string;
+  isFeatured: boolean;
+  weight?: number;
+  compatibility: {
+    brand: string;
+    printerModel: string;
+    printerSeries?: string;
+  }[];
 }
 
 export const adminApi = {
   dashboard: () =>
-    api.get<ApiOk<DashboardData>>('/admin/dashboard').then(r => r.data.data),
+    api.get<ApiOk<DashboardData>>("/admin/dashboard").then((r) => r.data.data),
 
   orders: (params?: { page?: number; limit?: number; status?: OrderStatus }) =>
-    api.get<ApiList<AdminOrder>>('/admin/orders', { params }).then(r => r.data),
+    api
+      .get<ApiList<AdminOrder>>("/admin/orders", { params })
+      .then((r) => r.data),
 
   updateOrderStatus: (id: string, status: OrderStatus) =>
-    api.put<ApiOk<AdminOrder>>(`/admin/orders/${id}/status`, { status }).then(r => r.data.data),
+    api
+      .put<ApiOk<AdminOrder>>(`/admin/orders/${id}/status`, { status })
+      .then((r) => r.data.data),
 
   users: (params?: { page?: number; limit?: number }) =>
-    api.get<ApiList<AdminUser>>('/admin/users', { params }).then(r => r.data),
+    api.get<ApiList<AdminUser>>("/admin/users", { params }).then((r) => r.data),
 
   inventory: () =>
-    api.get<ApiOk<InventoryProduct[]>>('/admin/inventory').then(r => r.data.data),
+    api
+      .get<ApiOk<InventoryProduct[]>>("/admin/inventory")
+      .then((r) => r.data.data),
 
   adjustStock: (id: string, stockQty: number) =>
-    api.put<ApiOk<Product>>(`/admin/products/${id}/stock`, { stockQty }).then(r => r.data.data),
+    api
+      .put<ApiOk<Product>>(`/admin/products/${id}/stock`, { stockQty })
+      .then((r) => r.data.data),
 
   catalog: () =>
-    api.get<ApiOk<AdminCatalog>>('/admin/catalog').then(r => r.data.data),
+    api.get<ApiOk<AdminCatalog>>("/admin/catalog").then((r) => r.data.data),
 
   products: (page = 1, limit = 20) =>
-    api.get<ApiList<Product>>('/admin/products', { params: { page, limit } }).then(r => r.data),
+    api
+      .get<ApiList<Product>>("/admin/products", { params: { page, limit } })
+      .then((r) => r.data),
 
   product: (id: string) =>
-    api.get<ApiOk<Product>>(`/admin/products/${id}`).then(r => r.data.data),
-}
+    api.get<ApiOk<Product>>(`/admin/products/${id}`).then((r) => r.data.data),
+};

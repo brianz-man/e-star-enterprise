@@ -97,12 +97,6 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
   res.status(201).json({ success: true, data: order });
 });
 
-/**
- * Runs `attempt` with a freshly generated order number, retrying a small,
- * bounded number of times if it fails specifically because the order number
- * collided with an existing one (Prisma P2002 on the unique orderNumber
- * column). Any other error propagates immediately without retrying.
- */
 async function createOrderWithRetry<T>(
   attempt: (orderNumber: string) => Promise<T>,
   maxAttempts = 3,

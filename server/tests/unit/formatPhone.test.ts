@@ -1,14 +1,8 @@
-/**
- * tests/unit/utils/formatPhone.test.ts
- *
- * Tests every supported input format and the error path.
- */
 import { describe, it, expect } from "vitest";
 import { formatPhone } from "./../../src/utils/formatPhone";
 
 describe("formatPhone", () => {
-  // ── Happy paths ────────────────────────────────────────────────────────────
-
+  //  Happy paths
   it("converts 07XXXXXXXX (leading 0, 10 digits) to 2547XXXXXXXX", () => {
     expect(formatPhone("0712345678")).toBe("254712345678");
   });
@@ -29,13 +23,13 @@ describe("formatPhone", () => {
     expect(formatPhone("0712 345 678")).toBe("254712345678");
   });
 
-  // ── Edge cases ─────────────────────────────────────────────────────────────
+  //  Edge cases
 
   it("handles Safaricom 01X numbers (leading 0, 10 digits)", () => {
     expect(formatPhone("0110000000")).toBe("254110000000");
   });
 
-  // ── Error paths ───────────────────────────────────────────────────────────
+  //  Error paths
 
   it("throws for a number that is too short", () => {
     expect(() => formatPhone("0712")).toThrow("Invalid Kenyan phone number");

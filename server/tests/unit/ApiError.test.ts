@@ -1,8 +1,3 @@
-/**
- * tests/unit/utils/ApiError.test.ts
- *
- * Full coverage of every static factory and the base constructor.
- */
 import { describe, it, expect } from "vitest";
 import { ApiError } from "../.././src/utils/ApiError";
 

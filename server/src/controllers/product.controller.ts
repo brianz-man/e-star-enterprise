@@ -20,15 +20,19 @@ export const getProducts = asyncHandler(async (req: Request, res: Response) => {
 
   // Coerce all query params from strings to their correct types
   const q = {
-    page:     Math.max(1, parseInt(raw.page as string) || 1),
-    limit:    Math.min(100, parseInt(raw.limit as string) || 12),
-    sort:     raw.sort as string | undefined,
-    brand:    raw.brand as string | undefined,
+    page: Math.max(1, parseInt(raw.page as string) || 1),
+    limit: Math.min(100, parseInt(raw.limit as string) || 12),
+    sort: raw.sort as string | undefined,
+    brand: raw.brand as string | undefined,
     category: raw.category as string | undefined,
-    search:   raw.search as string | undefined,
+    search: raw.search as string | undefined,
     featured: raw.featured === undefined ? undefined : Boolean(raw.featured),
-    minPrice: raw.minPrice ? new Prisma.Decimal(raw.minPrice as string) : undefined,
-    maxPrice: raw.maxPrice ? new Prisma.Decimal(raw.maxPrice as string) : undefined,
+    minPrice: raw.minPrice
+      ? new Prisma.Decimal(raw.minPrice as string)
+      : undefined,
+    maxPrice: raw.maxPrice
+      ? new Prisma.Decimal(raw.maxPrice as string)
+      : undefined,
   };
 
   const where: Prisma.ProductWhereInput = {
@@ -225,8 +229,6 @@ export const uploadImage = asyncHandler(async (req: Request, res: Response) => {
 
     res.status(201).json({ success: true, data: image });
   } finally {
-    // Always remove the Multer temp file from disk, whether the upload
-    // succeeded or failed, to prevent orphaned files from accumulating.
     try {
       await fs.unlink(req.file.path);
     } catch (cleanupErr) {

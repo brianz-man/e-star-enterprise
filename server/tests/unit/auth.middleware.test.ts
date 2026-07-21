@@ -1,17 +1,11 @@
-/**
- * tests/unit/middleware/auth.middleware.test.ts
- *
- * Tests authenticate() and requireAdmin() from auth.middleware.ts.
- */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 
 const TEST_SECRET = "test-jwt-secret-at-least-32-chars-long!!";
 
-// ── Mock env before importing the middleware ──────────────────────────────────
-// IMPORTANT: vi.mock is hoisted to the top of the file by Vitest, so the
-// factory must use only literal values — never variables declared in this file.
+//  Mock env before importing the middleware
+
 vi.mock("../../src/config/env", () => ({
   env: {
     jwt: {
@@ -28,7 +22,7 @@ import {
   requireAdmin,
 } from "../../src/middlewares/auth.middleware";
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+//  Helpers
 
 const makeToken = (
   payload: object,
@@ -48,7 +42,7 @@ const mockRes = () => {
 
 const next = vi.fn() as unknown as NextFunction;
 
-// ─── authenticate ─────────────────────────────────────────────────────────────
+//  authenticate
 
 describe("authenticate", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -110,8 +104,6 @@ describe("authenticate", () => {
     expect((next as any).mock.calls[0][0]?.statusCode).toBe(401);
   });
 });
-
-// ─── requireAdmin ─────────────────────────────────────────────────────────────
 
 describe("requireAdmin", () => {
   beforeEach(() => vi.clearAllMocks());
