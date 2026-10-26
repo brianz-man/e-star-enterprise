@@ -51,6 +51,7 @@ export default function AdminOrders() {
   }, [page, status]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- The async request updates loading state and order data.
     load();
   }, [load]);
 

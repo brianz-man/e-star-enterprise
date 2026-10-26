@@ -25,6 +25,7 @@ export default function AdminUsers() {
   }, [page]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- The async request updates loading state and customer data.
     load();
   }, [load]);
 

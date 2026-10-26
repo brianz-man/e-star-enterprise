@@ -5,6 +5,7 @@ import { ApiError } from "../utils/ApiError";
 import { initiateSTKPush } from "../services/mpesa.service";
 import { formatPhone } from "../utils/formatPhone";
 import { MpesaInitiateInput } from "../validators/order.validator";
+import logger from "../utils/logger";
 
 export const initiateMpesa = asyncHandler(
   async (req: Request, res: Response) => {
@@ -14,8 +15,10 @@ export const initiateMpesa = asyncHandler(
       where: { id: orderId, userId: req.user!.userId, isDeleted: false },
     });
     if (!order) throw ApiError.notFound("Order not found");
-    if (order.status === "DELIVERED")
-      throw ApiError.badRequest("Order already completed");
+    if (order.status !== "PENDING")
+      throw ApiError.badRequest(
+        "Payment can only be initiated for pending orders",
+      );
 
     // payment is now Payment? (one-to-one), not array — findUnique works correctly
     const existingPayment = await prisma.payment.findUnique({
@@ -132,8 +135,12 @@ export const mpesaCallback = asyncHandler(
       const expected = Number(payment.amount);
       const got = Number(paidAmount);
       if (!paidAmount || Number.isNaN(got) || Math.abs(got - expected) > 0.5) {
-        await prisma.payment.update({
-          where: { id: payment.id },
+        await prisma.payment.updateMany({
+          where: {
+            id: payment.id,
+            checkoutRequestId: CheckoutRequestID,
+            status: { not: "SUCCESS" },
+          },
           data: {
             status: "FAILED",
             resultCode: String(ResultCode),
@@ -158,9 +165,13 @@ export const mpesaCallback = asyncHandler(
         return;
       }
 
-      await prisma.$transaction([
-        prisma.payment.update({
-          where: { id: payment.id },
+      const outcome = await prisma.$transaction(async (tx) => {
+        const claimed = await tx.payment.updateMany({
+          where: {
+            id: payment.id,
+            checkoutRequestId: CheckoutRequestID,
+            status: { not: "SUCCESS" },
+          },
           data: {
             status: "SUCCESS",
             mpesaReceiptNo: receiptNo,
@@ -168,15 +179,107 @@ export const mpesaCallback = asyncHandler(
             resultDesc: ResultDesc,
             paidAt: new Date(),
           },
-        }),
-        prisma.order.update({
+        });
+        if (claimed.count === 0) return "already-processed" as const;
+
+        const order = await tx.order.findUnique({
           where: { id: payment.orderId },
-          data: { status: "CONFIRMED" },
-        }),
-      ]);
+          select: { status: true, items: true },
+        });
+        if (!order) throw ApiError.notFound("Order not found");
+
+        const decremented: Array<{ productId: string; quantity: number }> = [];
+        const restoreDecrementedStock = async () => {
+          for (const previous of decremented) {
+            await tx.product.update({
+              where: { id: previous.productId },
+              data: { stockQty: { increment: previous.quantity } },
+            });
+          }
+        };
+
+        if (order.status === "CANCELLED") {
+          await tx.paymentEvent.create({
+            data: {
+              orderId: payment.orderId,
+              eventType: "PAYMENT_RECEIVED_AFTER_CANCELLATION",
+              payload: { checkoutRequestId: CheckoutRequestID, receiptNo },
+            },
+          });
+          return "cancelled-order" as const;
+        }
+
+        for (const item of [...order.items].sort((a, b) =>
+          a.productId.localeCompare(b.productId),
+        )) {
+          const result = await tx.product.updateMany({
+            where: {
+              id: item.productId,
+              stockQty: { gte: item.quantity },
+            },
+            data: { stockQty: { decrement: item.quantity } },
+          });
+          if (result.count !== 1) {
+            await restoreDecrementedStock();
+            await tx.paymentEvent.create({
+              data: {
+                orderId: payment.orderId,
+                eventType: "PAYMENT_RECEIVED_INVENTORY_SHORTAGE",
+                payload: {
+                  checkoutRequestId: CheckoutRequestID,
+                  receiptNo,
+                  unavailableProductId: item.productId,
+                  requestedQuantity: item.quantity,
+                },
+              },
+            });
+            return "inventory-shortage" as const;
+          }
+          decremented.push({
+            productId: item.productId,
+            quantity: item.quantity,
+          });
+        }
+
+        if (order.status === "PENDING") {
+          const confirmed = await tx.order.updateMany({
+            where: { id: payment.orderId, status: "PENDING" },
+            data: { status: "CONFIRMED" },
+          });
+          if (confirmed.count === 0) {
+            const latestOrder = await tx.order.findUnique({
+              where: { id: payment.orderId },
+              select: { status: true },
+            });
+            if (latestOrder?.status === "CANCELLED") {
+              await restoreDecrementedStock();
+              await tx.paymentEvent.create({
+                data: {
+                  orderId: payment.orderId,
+                  eventType: "PAYMENT_RECEIVED_AFTER_CANCELLATION",
+                  payload: { checkoutRequestId: CheckoutRequestID, receiptNo },
+                },
+              });
+              return "cancelled-order" as const;
+            }
+          }
+        }
+        return "processed" as const;
+      });
+
+      if (outcome === "inventory-shortage" || outcome === "cancelled-order") {
+        logger.error(
+          { orderId: payment.orderId, checkoutRequestId: CheckoutRequestID },
+          `M-Pesa payment succeeded but requires ${outcome === "inventory-shortage" ? "inventory reconciliation" : "cancellation reconciliation"}`,
+        );
+      }
     } else {
-      await prisma.payment.update({
-        where: { id: payment.id },
+      await prisma.payment.updateMany({
+        where: {
+          id: payment.id,
+          checkoutRequestId: CheckoutRequestID,
+          status: { not: "SUCCESS" },
+        },
         data: {
           status: "FAILED",
           resultCode: String(ResultCode),

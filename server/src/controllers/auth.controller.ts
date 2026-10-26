@@ -51,18 +51,35 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
 
   const passwordHash = await bcrypt.hash(password, env.bcryptRounds);
 
-  const user = await prisma.user.create({
-    data: { firstName, lastName, email, passwordHash, phone },
-    select: {
-      id: true,
-      firstName: true,
-      lastName: true,
-      email: true,
-      role: true,
-    },
+  const user = await prisma.$transaction(async (tx) => {
+    const created = await tx.user.create({
+      data: { firstName, lastName, email, passwordHash, phone },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        role: true,
+        isVerified: true,
+      },
+    });
+    await tx.cart.create({ data: { userId: created.id } });
+    return created;
   });
 
-  await prisma.cart.create({ data: { userId: user.id } });
+  // Verification is advisory under the current authorization policy. A
+  // delivery outage must not reject an otherwise valid registration.
+  const verificationToken = await replaceVerificationToken(user.id);
+  const delivered = await sendVerificationEmail(
+    user.email,
+    user.firstName,
+    verificationToken,
+  );
+  if (!delivered) {
+    await prisma.verificationToken.deleteMany({
+      where: { tokenHash: hashToken(verificationToken) },
+    });
+  }
 
   const { accessToken, rawRefreshToken } = signTokens(
     user.id,
@@ -110,6 +127,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
       lastName: user.lastName,
       email: user.email,
       role: user.role,
+      isVerified: user.isVerified,
     },
   });
 });
@@ -207,6 +225,36 @@ export const getMe = asyncHandler(async (req: Request, res: Response) => {
 /** Generate a 32-byte verification token */
 const generateVerificationToken = () => crypto.randomBytes(32).toString("hex");
 
+const replaceVerificationToken = async (userId: string): Promise<string> => {
+  const rawToken = generateVerificationToken();
+  await prisma.$transaction([
+    prisma.verificationToken.deleteMany({ where: { userId } }),
+    prisma.verificationToken.create({
+      data: {
+        tokenHash: hashToken(rawToken),
+        userId,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      },
+    }),
+  ]);
+  return rawToken;
+};
+
+const replacePasswordResetToken = async (userId: string): Promise<string> => {
+  const rawToken = generateVerificationToken();
+  await prisma.$transaction([
+    prisma.passwordResetToken.deleteMany({ where: { userId } }),
+    prisma.passwordResetToken.create({
+      data: {
+        tokenHash: hashToken(rawToken),
+        userId,
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      },
+    }),
+  ]);
+  return rawToken;
+};
+
 export const sendVerificationEmail_handler = asyncHandler(
   async (req: Request, res: Response) => {
     const user = await prisma.user.findUnique({
@@ -215,18 +263,18 @@ export const sendVerificationEmail_handler = asyncHandler(
     if (!user) throw ApiError.notFound("User not found");
     if (user.isVerified) throw ApiError.conflict("Email already verified");
 
-    // Create verification token
-    const rawToken = generateVerificationToken();
-    await prisma.verificationToken.create({
-      data: {
-        tokenHash: hashToken(rawToken),
-        userId: user.id,
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
-      },
-    });
-
-    // Send email
-    await sendVerificationEmail(user.email, user.firstName, rawToken);
+    const rawToken = await replaceVerificationToken(user.id);
+    const delivered = await sendVerificationEmail(
+      user.email,
+      user.firstName,
+      rawToken,
+    );
+    if (!delivered) {
+      await prisma.verificationToken.deleteMany({
+        where: { tokenHash: hashToken(rawToken) },
+      });
+      throw ApiError.internal("Unable to send verification email");
+    }
 
     res.json({ success: true, message: "Verification email sent" });
   },
@@ -245,14 +293,17 @@ export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
   if (tokenRecord.expiresAt < new Date())
     throw ApiError.badRequest("Token expired");
 
-  // Mark as verified
-  await prisma.user.update({
-    where: { id: tokenRecord.userId },
-    data: { isVerified: true },
+  await prisma.$transaction(async (tx) => {
+    const consumed = await tx.verificationToken.deleteMany({
+      where: { id: tokenRecord.id, expiresAt: { gt: new Date() } },
+    });
+    if (consumed.count !== 1)
+      throw ApiError.badRequest("Invalid or expired token");
+    await tx.user.update({
+      where: { id: tokenRecord.userId },
+      data: { isVerified: true },
+    });
   });
-
-  // Clean up token
-  await prisma.verificationToken.delete({ where: { id: tokenRecord.id } });
 
   res.json({ success: true, message: "Email verified successfully" });
 });
@@ -264,7 +315,7 @@ export const forgotPassword = asyncHandler(
     const { email } = req.body as { email: string };
 
     const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) {
+    if (!user || !user.isActive || user.isDeleted) {
       // Don't reveal if email exists (security best practice)
       return res.json({
         success: true,
@@ -272,18 +323,17 @@ export const forgotPassword = asyncHandler(
       });
     }
 
-    // Create reset token
-    const rawToken = generateVerificationToken();
-    await prisma.passwordResetToken.create({
-      data: {
-        tokenHash: hashToken(rawToken),
-        userId: user.id,
-        expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour
-      },
-    });
-
-    // Send email
-    await sendPasswordResetEmail(user.email, user.firstName, rawToken);
+    const rawToken = await replacePasswordResetToken(user.id);
+    const delivered = await sendPasswordResetEmail(
+      user.email,
+      user.firstName,
+      rawToken,
+    );
+    if (!delivered) {
+      await prisma.passwordResetToken.deleteMany({
+        where: { tokenHash: hashToken(rawToken) },
+      });
+    }
 
     res.json({
       success: true,
@@ -312,19 +362,21 @@ export const resetPassword = asyncHandler(
     // Hash new password
     const passwordHash = await bcrypt.hash(password, env.bcryptRounds);
 
-    // Update password
-    await prisma.user.update({
-      where: { id: tokenRecord.userId },
-      data: { passwordHash },
+    await prisma.$transaction(async (tx) => {
+      const consumed = await tx.passwordResetToken.deleteMany({
+        where: { id: tokenRecord.id, expiresAt: { gt: new Date() } },
+      });
+      if (consumed.count !== 1)
+        throw ApiError.badRequest("Invalid or expired token");
+      await tx.user.update({
+        where: { id: tokenRecord.userId },
+        data: { passwordHash },
+      });
+      await tx.refreshToken.updateMany({
+        where: { userId: tokenRecord.userId, revoked: false },
+        data: { revoked: true },
+      });
     });
-
-    await prisma.refreshToken.updateMany({
-      where: { userId: tokenRecord.userId, revoked: false },
-      data: { revoked: true },
-    });
-
-    // Clean up token
-    await prisma.passwordResetToken.delete({ where: { id: tokenRecord.id } });
 
     res.json({ success: true, message: "Password reset successfully" });
   },

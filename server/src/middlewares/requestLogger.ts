@@ -1,5 +1,4 @@
 import { Request, Response, NextFunction } from "express";
-import { randomUUID } from "crypto";
 import logger from "../utils/logger";
 
 export const requestLogger = (
@@ -7,11 +6,8 @@ export const requestLogger = (
   res: Response,
   next: NextFunction,
 ): void => {
-  const requestId = randomUUID();
+  const requestId = req.requestId ?? "unknown";
   const start = Date.now();
-
-  // Attach to req so controllers can include it in logs
-  (req as Request & { requestId: string }).requestId = requestId;
 
   res.on("finish", () => {
     const ms = Date.now() - start;

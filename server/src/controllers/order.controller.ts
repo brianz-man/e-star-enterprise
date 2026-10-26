@@ -42,7 +42,7 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
 
   const order = await createOrderWithRetry(async (orderNumber) => {
     return prisma.$transaction(async (tx) => {
-      // Re-check stock inside transaction to prevent race conditions
+      // Re-check stock when creating the order; stock is deducted only after payment.
       for (const item of cart.items) {
         const fresh = await tx.product.findUnique({
           where: { id: item.productId },
@@ -79,14 +79,6 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
         },
         include: { items: true },
       });
-
-      // Decrement stock atomically
-      for (const item of cart.items) {
-        await tx.product.update({
-          where: { id: item.productId },
-          data: { stockQty: { decrement: item.quantity } },
-        });
-      }
 
       await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
 

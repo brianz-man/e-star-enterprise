@@ -17,7 +17,7 @@ export const CartDrawer = () => {
     try {
       await updateQuantity(itemId, qty);
     } catch {
-      toast.error("Could not update cart");
+      return;
     }
   };
 
@@ -26,7 +26,7 @@ export const CartDrawer = () => {
       await removeItem(itemId);
       toast.success("Item removed");
     } catch {
-      toast.error("Could not remove item");
+      return;
     }
   };
 

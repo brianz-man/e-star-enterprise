@@ -62,13 +62,15 @@ export default function Products() {
       setItems(r.data);
       setTotal(r.meta?.total ?? 0);
       setPages(r.meta?.pages ?? 1);
-    } catch {
+    } catch (error) {
+      console.error("Failed to load products", error);
     } finally {
       setBusy(false);
     }
   }, [page, search, brand, cat, sort]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- The async request updates loading state and results.
     load();
   }, [load]);
 

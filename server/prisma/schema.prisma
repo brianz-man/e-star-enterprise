@@ -46,26 +46,26 @@ enum PayStatus {
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model User {
-  id            String         @id @default(uuid())
-  email         String         @unique
-  passwordHash  String
-  firstName     String
-  lastName      String
-  phone         String?
-  role          Role           @default(CUSTOMER)
-  isVerified    Boolean        @default(false)
-  isActive      Boolean        @default(true)
-  isDeleted     Boolean        @default(false)
-  deletedAt     DateTime?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  refreshTokens RefreshToken[]
-  verificationTokens VerificationToken[] @relation("VerificationTokens")
+  id                  String               @id @default(uuid())
+  email               String               @unique
+  passwordHash        String
+  firstName           String
+  lastName            String
+  phone               String?
+  role                Role                 @default(CUSTOMER)
+  isVerified          Boolean              @default(false)
+  isActive            Boolean              @default(true)
+  isDeleted           Boolean              @default(false)
+  deletedAt           DateTime?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  refreshTokens       RefreshToken[]
+  verificationTokens  VerificationToken[]  @relation("VerificationTokens")
   passwordResetTokens PasswordResetToken[] @relation("PasswordResetTokens")
-  addresses     Address[]
-  orders        Order[]
-  cart          Cart?
-  reviews       Review[]
+  addresses           Address[]
+  orders              Order[]
+  cart                Cart?
+  reviews             Review[]
 
   @@index([email])
   @@index([isActive])
@@ -127,26 +127,27 @@ model Category {
 }
 
 model Product {
-  id           String   @id @default(uuid())
+  id           String                   @id @default(uuid())
   name         String
-  slug         String   @unique
+  slug         String                   @unique
   description  String
-  sku          String   @unique
-  price        Decimal  @db.Decimal(10, 2)
-  comparePrice Decimal? @db.Decimal(10, 2)
-  stockQty     Int      @default(0)
-  lowStockAt   Int      @default(5)
-  isActive     Boolean  @default(true)
-  isFeatured   Boolean  @default(false)
-  isDeleted    Boolean  @default(false)
+  sku          String                   @unique
+  price        Decimal                  @db.Decimal(10, 2)
+  comparePrice Decimal?                 @db.Decimal(10, 2)
+  stockQty     Int                      @default(0)
+  lowStockAt   Int                      @default(5)
+  isActive     Boolean                  @default(true)
+  isFeatured   Boolean                  @default(false)
+  isDeleted    Boolean                  @default(false)
   deletedAt    DateTime?
   weight       Float?
-  brand        Brand    @relation(fields: [brandId], references: [id])
+  brand        Brand                    @relation(fields: [brandId], references: [id])
   brandId      String
-  category     Category @relation(fields: [categoryId], references: [id])
+  category     Category                 @relation(fields: [categoryId], references: [id])
   categoryId   String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+  searchVector Unsupported("tsvector")? @map("search_vector")
 
   images        ProductImage[]
   compatibility PrinterCompatibility[]
@@ -234,7 +235,7 @@ model Order {
   updatedAt       DateTime    @updatedAt
 
   items   OrderItem[]
-  payment Payment?        // ← One-to-one: one order, one primary payment
+  payment Payment? // ← One-to-one: one order, one primary payment
 
   paymentEvents PaymentEvent[]
 
@@ -267,7 +268,7 @@ model OrderItem {
 model Payment {
   id                String      @id @default(uuid())
   order             Order       @relation(fields: [orderId], references: [id])
-  orderId           String      @unique    // ← FIXED: was missing @unique
+  orderId           String      @unique // ← FIXED: was missing @unique
   provider          PayProvider @default(MPESA)
   status            PayStatus   @default(PENDING)
   amount            Decimal     @db.Decimal(10, 2)
@@ -291,7 +292,7 @@ model PaymentEvent {
   id        String   @id @default(uuid())
   orderId   String
   order     Order    @relation(fields: [orderId], references: [id])
-  eventType String   // "STK_PUSH_INITIATED" | "CALLBACK_RECEIVED" | etc.
+  eventType String // "STK_PUSH_INITIATED" | "CALLBACK_RECEIVED" | etc.
   payload   Json
   createdAt DateTime @default(now())
 
@@ -300,25 +301,29 @@ model PaymentEvent {
 }
 
 model Review {
-  id        String   @id @default(uuid())
-  user      User     @relation(fields: [userId], references: [id])
+  id        String    @id @default(uuid())
+  user      User      @relation(fields: [userId], references: [id])
   userId    String
-  product   Product  @relation(fields: [productId], references: [id])
+  product   Product   @relation(fields: [productId], references: [id])
   productId String
   rating    Int
   title     String?
   body      String?
-  isVisible Boolean  @default(true)
-  createdAt DateTime @default(now())
+  isVisible Boolean   @default(true)
+  isDeleted Boolean   @default(false)
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   @@unique([userId, productId])
   @@index([productId])
+  @@index([isDeleted])
   @@map("reviews")
 }
 
 model RefreshToken {
   id        String   @id @default(uuid())
-  tokenHash String   @unique   // ← Store HASH not raw token (security)
+  tokenHash String   @unique // ← Store HASH not raw token (security)
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime

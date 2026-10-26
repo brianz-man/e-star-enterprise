@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import type { Cart, CartItem } from "@/types";
 import { cartApi } from "@/api/cart";
+import toast from "react-hot-toast";
+import { getApiError } from "@/utils/getApiError";
 
 interface CartState {
   cart: Cart | null;
@@ -41,7 +43,8 @@ export const useCartStore = create<CartState>((set, get) => ({
     try {
       set({ cart: await cartApi.get() });
     } catch (e) {
-      // Silently fail if user not logged in — this is called on app init
+      // Keep cart loading non-blocking while surfacing the failure to the user.
+      toast.error(getApiError(e, "Could not load cart"));
       console.debug("Cart fetch failed:", e);
     } finally {
       set({ isLoading: false });
@@ -50,10 +53,12 @@ export const useCartStore = create<CartState>((set, get) => ({
 
   addItem: async (productId, quantity = 1) => {
     set({ isLoading: true });
+
     try {
       set({ cart: await cartApi.add(productId, quantity), isOpen: true });
-    } catch (e) {
-      throw e; // Let component handle the error with toast
+    } catch (error: unknown) {
+      toast.error(getApiError(error, "Could not add item to cart"));
+      throw error;
     } finally {
       set({ isLoading: false });
     }
@@ -63,8 +68,9 @@ export const useCartStore = create<CartState>((set, get) => ({
     set({ isLoading: true });
     try {
       set({ cart: await cartApi.update(itemId, quantity) });
-    } catch (e) {
-      throw e;
+    } catch (error: unknown) {
+      toast.error(getApiError(error, "Could not update cart"));
+      throw error;
     } finally {
       set({ isLoading: false });
     }
@@ -74,8 +80,9 @@ export const useCartStore = create<CartState>((set, get) => ({
     set({ isLoading: true });
     try {
       set({ cart: await cartApi.remove(itemId) });
-    } catch (e) {
-      throw e;
+    } catch (error: unknown) {
+      toast.error(getApiError(error, "Could not remove item from cart"));
+      throw error;
     } finally {
       set({ isLoading: false });
     }
@@ -86,8 +93,9 @@ export const useCartStore = create<CartState>((set, get) => ({
     try {
       await cartApi.clear();
       set({ cart: null });
-    } catch (e) {
-      throw e;
+    } catch (error: unknown) {
+      toast.error(getApiError(error, "Could not clear cart"));
+      throw error;
     } finally {
       set({ isLoading: false });
     }

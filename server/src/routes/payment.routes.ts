@@ -6,6 +6,7 @@ import {
 } from "../controllers/payment.controller";
 import { validate } from "../middlewares/validate";
 import { authenticate } from "../middlewares/auth.middleware";
+import { mpesaCallbackGuard } from "../middlewares/mpesaCallbackGuard";
 import { mpesaInitiateSchema } from "../validators/order.validator";
 
 const router = Router();
@@ -16,7 +17,7 @@ router.post(
   validate(mpesaInitiateSchema),
   initiateMpesa,
 );
-router.post("/mpesa/callback", mpesaCallback);
+router.post("/mpesa/callback", mpesaCallbackGuard, mpesaCallback);
 router.get("/:orderId/status", authenticate, getPaymentStatus);
 
 export default router;

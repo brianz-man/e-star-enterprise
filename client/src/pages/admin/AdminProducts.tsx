@@ -38,6 +38,7 @@ export default function AdminProducts() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- The async request updates loading state and product data.
     load(1);
   }, [load]);
 

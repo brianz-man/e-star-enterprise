@@ -22,7 +22,10 @@ export default function AdminInventory() {
       .finally(() => setBusy(false));
   };
 
-  useEffect(load, []);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- The async request updates loading state and inventory data.
+    load();
+  }, []);
 
   const startEdit = (p: InventoryProduct) => {
     setEditing(p.id);

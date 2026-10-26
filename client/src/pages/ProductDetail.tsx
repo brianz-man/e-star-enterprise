@@ -51,7 +51,7 @@ export default function ProductDetail() {
       await addItem(p!.id, qty);
       toast.success("Added to cart!");
     } catch {
-      toast.error("Could not add to cart");
+      return;
     } finally {
       setAdding(false);
     }

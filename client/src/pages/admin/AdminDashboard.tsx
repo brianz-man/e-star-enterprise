@@ -40,7 +40,10 @@ export default function AdminDashboard() {
       .finally(() => setBusy(false));
   };
 
-  useEffect(load, []);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- The async request updates loading state and dashboard data.
+    load();
+  }, []);
 
   const updateStatus = async (orderId: string, status: OrderStatus) => {
     setUpdating(orderId);
