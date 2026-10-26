@@ -44,6 +44,12 @@ export class ErrorBoundary extends Component<Props, State> {
           >
             Reload page
           </button>
+          <a
+            href="/"
+            className="text-sm font-medium text-blue-700 hover:underline"
+          >
+            Go to home page
+          </a>
         </div>
       );
     }

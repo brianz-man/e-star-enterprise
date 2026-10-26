@@ -95,6 +95,7 @@ export default function AdminProductForm() {
 
   useEffect(() => {
     if (!isEdit || !id) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Show the loading state while fetching the selected product.
     setBusy(true);
     adminApi
       .product(id)

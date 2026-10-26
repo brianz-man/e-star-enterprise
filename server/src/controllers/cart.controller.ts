@@ -18,16 +18,13 @@ const cartInclude = {
 } as const;
 
 const getOrCreateCart = async (userId: string) => {
-  await prisma.cart.upsert({
+  const cart = await prisma.cart.upsert({
     where: { userId },
     update: {},
     create: { userId },
-  });
-  const cart = await prisma.cart.findUnique({
-    where: { userId },
     include: cartInclude,
   });
-  return cart!;
+  return cart;
 };
 
 const calcTotal = (cart: Awaited<ReturnType<typeof getOrCreateCart>>) => {
@@ -52,7 +49,7 @@ export const addToCart = asyncHandler(async (req: Request, res: Response) => {
   };
 
   const product = await prisma.product.findFirst({
-    where: { id: productId, isActive: true },
+    where: { id: productId, isActive: true, isDeleted: false },
   });
   if (!product) throw ApiError.notFound("Product not found");
   if (product.stockQty < quantity)
@@ -63,23 +60,15 @@ export const addToCart = asyncHandler(async (req: Request, res: Response) => {
 
   const cart = await getOrCreateCart(req.user!.userId);
 
-  const existing = await prisma.cartItem.findUnique({
-    where: { cartId_productId: { cartId: cart.id, productId } },
-  });
+  const existing = cart.items.find((item) => item.productId === productId);
+  if ((existing?.quantity ?? 0) + quantity > product.stockQty)
+    throw ApiError.badRequest(`Only ${product.stockQty} units in stock`);
 
-  if (existing) {
-    const newQty = existing.quantity + quantity;
-    if (newQty > product.stockQty)
-      throw ApiError.badRequest(`Only ${product.stockQty} units in stock`);
-    await prisma.cartItem.update({
-      where: { id: existing.id },
-      data: { quantity: newQty },
-    });
-  } else {
-    await prisma.cartItem.create({
-      data: { cartId: cart.id, productId, quantity },
-    });
-  }
+  await prisma.cartItem.upsert({
+    where: { cartId_productId: { cartId: cart.id, productId } },
+    create: { cartId: cart.id, productId, quantity },
+    update: { quantity: { increment: quantity } },
+  });
 
   const updated = await getOrCreateCart(req.user!.userId);
   res.json({ success: true, data: { ...updated, total: calcTotal(updated) } });
@@ -102,7 +91,9 @@ export const updateCartItem = asyncHandler(
     const product = await prisma.product.findUnique({
       where: { id: item.productId },
     });
-    if (product && product.stockQty < quantity)
+    if (!product || !product.isActive || product.isDeleted)
+      throw ApiError.badRequest("Product is no longer available");
+    if (product.stockQty < quantity)
       throw ApiError.badRequest(`Only ${product.stockQty} units in stock`);
 
     await prisma.cartItem.update({

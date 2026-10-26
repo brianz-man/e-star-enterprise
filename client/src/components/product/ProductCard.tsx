@@ -27,7 +27,7 @@ export const ProductCard = ({ product }: { product: Product }) => {
       await addItem(product.id, 1);
       toast.success("Added to cart!");
     } catch {
-      toast.error("Could not add to cart");
+      return;
     }
   };
 

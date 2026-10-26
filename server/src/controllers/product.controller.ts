@@ -35,8 +35,17 @@ export const getProducts = asyncHandler(async (req: Request, res: Response) => {
       : undefined,
   };
 
+  const fullTextMatches = q.search
+    ? await prisma.$queryRaw<Array<{ id: string }>>`
+        SELECT "id"
+        FROM "products"
+        WHERE "search_vector" @@ plainto_tsquery('simple', ${q.search})
+      `
+    : [];
+
   const where: Prisma.ProductWhereInput = {
     isActive: true,
+    isDeleted: false,
     ...(q.brand && { brand: { slug: q.brand } }),
     ...(q.category && { category: { slug: q.category } }),
     ...(q.featured !== undefined && { isFeatured: q.featured }),
@@ -50,6 +59,7 @@ export const getProducts = asyncHandler(async (req: Request, res: Response) => {
       : {}),
     ...(q.search && {
       OR: [
+        { id: { in: fullTextMatches.map((product) => product.id) } },
         { name: { contains: q.search, mode: "insensitive" } },
         { description: { contains: q.search, mode: "insensitive" } },
         { sku: { contains: q.search, mode: "insensitive" } },
@@ -83,7 +93,10 @@ export const getProducts = asyncHandler(async (req: Request, res: Response) => {
         images: { where: { isPrimary: true }, take: 1 },
         brand: { select: { id: true, name: true, slug: true } },
         category: { select: { id: true, name: true, slug: true } },
-        reviews: { select: { rating: true } },
+        reviews: {
+          where: { isDeleted: false },
+          select: { rating: true },
+        },
       },
     }),
     prisma.product.count({ where }),
@@ -110,14 +123,18 @@ export const getProducts = asyncHandler(async (req: Request, res: Response) => {
 export const getProductBySlug = asyncHandler(
   async (req: Request, res: Response) => {
     const product = await prisma.product.findFirst({
-      where: { slug: String(req.params.slug), isActive: true },
+      where: {
+        slug: String(req.params.slug),
+        isActive: true,
+        isDeleted: false,
+      },
       include: {
         images: { orderBy: [{ isPrimary: "desc" }, { sortOrder: "asc" }] },
         brand: true,
         category: true,
         compatibility: { orderBy: { brand: "asc" } },
         reviews: {
-          where: { isVisible: true },
+          where: { isVisible: true, isDeleted: false },
           include: { user: { select: { firstName: true, lastName: true } } },
           orderBy: { createdAt: "desc" },
           take: 20,
@@ -200,7 +217,7 @@ export const deleteProduct = asyncHandler(
     const { id } = req.params;
     await prisma.product.update({
       where: { id: String(req.params.id) },
-      data: { isActive: false },
+      data: { isActive: false, isDeleted: true, deletedAt: new Date() },
     });
     res.json({ success: true, message: "Product deactivated" });
   },

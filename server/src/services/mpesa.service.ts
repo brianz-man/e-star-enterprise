@@ -59,30 +59,38 @@ const describeMpesaError = (err: any): string => {
 const getAccessToken = async (): Promise<string> => {
   const now = Date.now();
 
-  // If we have a valid token that isn't expiring in the next 2 minutes, reuse it
   if (cachedToken && tokenExpiryTime > now + 120_000) {
     return cachedToken;
   }
 
-  const credentials = Buffer.from(
-    `${env.mpesa.consumerKey}:${env.mpesa.consumerSecret}`,
-  ).toString("base64");
-
-  try {
-    const { data } = await daraja.get(
-      `${BASE_URL}/oauth/v1/generate?grant_type=client_credentials`,
-      { headers: { Authorization: `Basic ${credentials}` } },
-    );
-
-    // Save token and parse expiry (typically 3600 seconds, convert to ms)
-    cachedToken = data.access_token as string;
-    const expiresInSeconds = parseInt(data.expires_in, 10) || 3600;
-    tokenExpiryTime = now + expiresInSeconds * 1000;
-
-    return cachedToken;
-  } catch (err: any) {
-    throw new Error(`M-Pesa auth failed: ${describeMpesaError(err)}`);
+  if (pendingTokenRequest) {
+    return pendingTokenRequest;
   }
+
+  pendingTokenRequest = (async () => {
+    const credentials = Buffer.from(
+      `${env.mpesa.consumerKey}:${env.mpesa.consumerSecret}`,
+    ).toString("base64");
+
+    try {
+      const { data } = await daraja.get(
+        `${BASE_URL}/oauth/v1/generate?grant_type=client_credentials`,
+        { headers: { Authorization: `Basic ${credentials}` } },
+      );
+
+      cachedToken = data.access_token as string;
+      const expiresInSeconds = parseInt(data.expires_in, 10) || 3600;
+      tokenExpiryTime = Date.now() + expiresInSeconds * 1000;
+
+      return cachedToken;
+    } catch (err: any) {
+      throw new Error(`M-Pesa auth failed: ${describeMpesaError(err)}`);
+    } finally {
+      pendingTokenRequest = null;
+    }
+  })();
+
+  return pendingTokenRequest;
 };
 
 export interface STKPushParams {
@@ -111,6 +119,11 @@ export const initiateSTKPush = async (
 
   const phone = params.phone;
 
+  const callbackBase = `${env.mpesa.apiBaseUrl}/api/v1/payments/mpesa/callback`;
+  const callbackUrl = env.mpesa.callbackToken
+    ? `${callbackBase}?token=${encodeURIComponent(env.mpesa.callbackToken)}`
+    : callbackBase;
+
   let data: any;
   try {
     const response = await daraja.post(
@@ -119,12 +132,12 @@ export const initiateSTKPush = async (
         BusinessShortCode: env.mpesa.shortcode,
         Password: password,
         Timestamp: timestamp,
-        TransactionType: "CustomerPayBillOnline", // Ensure this matches your shortcode profile (PayBill vs Till)
+        TransactionType: "CustomerPayBillOnline",
         Amount: Math.ceil(params.amount),
         PartyA: phone,
         PartyB: env.mpesa.shortcode,
         PhoneNumber: phone,
-        CallBackURL: `${env.mpesa.apiBaseUrl}/api/v1/payments/mpesa/callback`,
+        CallBackURL: callbackUrl,
         AccountReference: params.orderNumber,
         TransactionDesc: `E-Star Order ${params.orderNumber}`,
       },

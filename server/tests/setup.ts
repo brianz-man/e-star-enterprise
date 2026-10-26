@@ -28,9 +28,6 @@ Object.assign(process.env, {
     "bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919",
   MPESA_ENV: "sandbox",
   API_BASE_URL: "http://localhost:5000",
-  AT_API_KEY: "test-at-key",
-  AT_USERNAME: "sandbox",
-  AT_SENDER_ID: "E-STAR",
   RESEND_API_KEY: "test-resend-key",
   EMAIL_FROM: "orders@e-star.co.ke",
 });

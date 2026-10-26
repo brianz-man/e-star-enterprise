@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
@@ -41,7 +41,7 @@ export default function Checkout() {
   const nav = useNavigate();
   const [step, setStep] = useState<Step>("address");
   const [order, setOrder] = useState<Order | null>(null);
-  const [mpPhone, setMpPhone] = useState(user?.phone ?? "");
+  const [paymentNeedsReview, setPaymentNeedsReview] = useState(false);
   const [creating, setCreating] = useState(false);
   const [paying, setPaying] = useState(false);
   const [polling, setPolling] = useState(false);
@@ -50,28 +50,27 @@ export default function Checkout() {
     register,
     handleSubmit,
     formState: { errors },
+    control,
+    getValues,
     setValue,
   } = useForm<Form>({
     resolver: zodResolver(schema),
     defaultValues: {
-      firstName: user?.firstName,
-      lastName: user?.lastName,
+      firstName: user?.firstName ?? "",
+      lastName: user?.lastName ?? "",
       phone: user?.phone ?? "",
+      county: "",
+      town: "",
+      street: "",
+      postalCode: "",
+      notes: "",
     },
   });
+  const mpPhone = useWatch({ control, name: "phone" });
 
   useEffect(() => {
     if (step === "address" && (!cart || cart.items.length === 0)) nav("/");
   }, [cart, nav, step]);
-
-  useEffect(() => {
-    if (user?.firstName) setValue("firstName", user.firstName);
-    if (user?.lastName) setValue("lastName", user.lastName);
-    if (user?.phone) {
-      setValue("phone", user.phone);
-      setMpPhone(user.phone);
-    }
-  }, [user, setValue]);
 
   // Poll payment status
   useEffect(() => {
@@ -81,11 +80,25 @@ export default function Checkout() {
         const s = await paymentsApi.status(order.id);
         if (s?.payment?.status === "SUCCESS") {
           clearInterval(id);
+          clearTimeout(timeout);
           setPolling(false);
+          const confirmedStatuses = [
+            "CONFIRMED",
+            "PROCESSING",
+            "SHIPPED",
+            "DELIVERED",
+          ];
+          if (!confirmedStatuses.includes(s.orderStatus)) {
+            setPaymentNeedsReview(true);
+            toast.error(
+              "Payment was received, but your order needs review. Please do not pay again.",
+            );
+          }
           setStep("done");
         }
         if (s?.payment?.status === "FAILED") {
           clearInterval(id);
+          clearTimeout(timeout);
           setPolling(false);
           toast.error("Payment failed. Please try again.");
         }
@@ -93,7 +106,20 @@ export default function Checkout() {
         /* ignore */
       }
     }, 3000);
-    return () => clearInterval(id);
+    const timeout = setTimeout(
+      () => {
+        clearInterval(id);
+        setPolling(false);
+        toast.error(
+          "Payment confirmation timed out. Check your order status before retrying.",
+        );
+      },
+      2 * 60 * 1000,
+    );
+    return () => {
+      clearInterval(id);
+      clearTimeout(timeout);
+    };
   }, [polling, order]);
 
   const createOrder = async (data: Form) => {
@@ -116,9 +142,10 @@ export default function Checkout() {
 
   const pay = async () => {
     if (!order) return;
+    const phone = getValues("phone") || user?.phone || "";
     setPaying(true);
     try {
-      await paymentsApi.initiate(order.id, mpPhone);
+      await paymentsApi.initiate(order.id, phone);
       toast.success("M-Pesa prompt sent! Enter your PIN.");
       setPolling(true);
     } catch (e: unknown) {
@@ -274,8 +301,13 @@ export default function Checkout() {
                     label="M-Pesa phone number"
                     type="tel"
                     placeholder="0712 345 678"
-                    value={mpPhone}
-                    onChange={(e) => setMpPhone(e.target.value)}
+                    value={mpPhone || user?.phone || ""}
+                    onChange={(e) =>
+                      setValue("phone", e.target.value, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      })
+                    }
                     hint="An STK Push prompt will be sent to this number"
                   />
                   {polling && (
@@ -302,14 +334,17 @@ export default function Checkout() {
                 <CheckCircle size={32} className="text-green-600" />
               </div>
               <h2 className="text-2xl font-black text-gray-900 mb-2">
-                Order Confirmed!
+                {paymentNeedsReview
+                  ? "Payment received — order needs review"
+                  : "Order Confirmed!"}
               </h2>
               <p className="text-gray-500 font-mono text-sm mb-1">
                 #{order?.orderNumber}
               </p>
               <p className="text-gray-500 text-sm mb-8">
-                You'll receive an SMS update. Thank you for shopping with
-                E-Star!
+                {paymentNeedsReview
+                  ? "Your payment was received, but we could not confirm the order automatically. Please contact support and do not submit another payment."
+                  : "You'll receive an SMS update. Thank you for shopping with E-Star!"}
               </p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <Button onClick={() => nav("/account")} variant="secondary">

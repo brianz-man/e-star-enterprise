@@ -4,6 +4,10 @@ import axios, {
 } from "axios";
 import { useAuthStore } from "@/store/auth";
 
+const API_BASE_URL = (
+  import.meta.env.VITE_API_URL?.trim() || "/api/v1"
+).replace(/\/+$/, "");
+
 let isRefreshing = false;
 let queue: Array<{
   resolve: (token: string) => void;
@@ -20,7 +24,7 @@ const rejectQueue = (err: unknown) => {
 };
 
 export const api: AxiosInstance = axios.create({
-  baseURL: "/api/v1",
+  baseURL: API_BASE_URL,
   withCredentials: true,
   headers: { "Content-Type": undefined },
 });
@@ -61,7 +65,7 @@ api.interceptors.response.use(
       const { data } = await axios.post<{
         success: boolean;
         accessToken: string;
-      }>("/api/v1/auth/refresh", {}, { withCredentials: true });
+      }>(`${API_BASE_URL}/auth/refresh`, {}, { withCredentials: true });
       const newToken = data.accessToken;
       useAuthStore.getState().setToken(newToken);
       original.headers.Authorization = `Bearer ${newToken}`;

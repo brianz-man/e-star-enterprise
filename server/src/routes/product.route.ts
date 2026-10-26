@@ -36,7 +36,13 @@ const fileFilter = (
 const upload = multer({
   dest: "uploads/",
   fileFilter,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+    files: 1,
+    fields: 20,
+    parts: 21,
+    fieldSize: 64 * 1024,
+  },
 });
 
 router.get("/", validate(productQuerySchema, "query"), getProducts);

@@ -17,15 +17,15 @@ const sendEmail = async (params: {
   to: string;
   subject: string;
   html: string;
-}): Promise<void> => {
+}): Promise<boolean> => {
   if (!env.resend.apiKey) {
     // Fail loudly in logs (this is a config problem), but don't throw —
     // callers shouldn't 500 just because email isn't configured yet.
     logger.error(
-      { to: params.to, subject: params.subject },
+      { subject: params.subject },
       "RESEND_API_KEY is not set — email was not sent",
     );
-    return;
+    return false;
   }
 
   try {
@@ -45,27 +45,50 @@ const sendEmail = async (params: {
         timeout: 10_000,
       },
     );
+    return true;
   } catch (err: any) {
     // Log and swallow — see note above on why this doesn't throw.
-    const detail = err?.response?.data || err.message;
     logger.error(
-      { to: params.to, subject: params.subject, err: detail },
+      {
+        subject: params.subject,
+        status: err?.response?.status,
+        code: err?.code,
+      },
       "Failed to send email via Resend",
     );
+    return false;
   }
+};
+
+const escapeHtml = (value: string): string =>
+  value.replace(/[&<>"']/g, (character) => {
+    const entities: Record<string, string> = {
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    };
+    return entities[character];
+  });
+
+const createClientLink = (path: string, token: string): string => {
+  const url = new URL(path, env.clientUrl[0]);
+  url.searchParams.set("token", token);
+  return escapeHtml(url.toString());
 };
 
 export const sendVerificationEmail = async (
   email: string,
   firstName: string,
   token: string,
-): Promise<void> => {
-  const verifyUrl = `${env.clientUrl[0]}/verify-email?token=${token}`;
-  await sendEmail({
+): Promise<boolean> => {
+  const verifyUrl = createClientLink("/verify-email", token);
+  return sendEmail({
     to: email,
     subject: "Verify your E-Star Enterprise account",
     html: `
-      <p>Hi ${firstName},</p>
+      <p>Hi ${escapeHtml(firstName)},</p>
       <p>Thanks for signing up to E-Star Enterprise. Please confirm your email address by clicking the link below:</p>
       <p><a href="${verifyUrl}">Verify my email</a></p>
       <p>This link expires in 24 hours. If you didn't create this account, you can safely ignore this email.</p>
@@ -77,13 +100,13 @@ export const sendPasswordResetEmail = async (
   email: string,
   firstName: string,
   token: string,
-): Promise<void> => {
-  const resetUrl = `${env.clientUrl[0]}/reset-password?token=${token}`;
-  await sendEmail({
+): Promise<boolean> => {
+  const resetUrl = createClientLink("/reset-password", token);
+  return sendEmail({
     to: email,
     subject: "Reset your E-Star Enterprise password",
     html: `
-      <p>Hi ${firstName},</p>
+      <p>Hi ${escapeHtml(firstName)},</p>
       <p>We received a request to reset your password. Click the link below to choose a new one:</p>
       <p><a href="${resetUrl}">Reset my password</a></p>
       <p>This link expires in 1 hour. If you didn't request this, you can safely ignore this email — your password will not be changed.</p>

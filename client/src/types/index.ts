@@ -147,6 +147,7 @@ export interface Order {
 export interface ApiOk<T> {
   success: true;
   data: T;
+  message?: string;
 }
 export interface ApiList<T> {
   success: true;

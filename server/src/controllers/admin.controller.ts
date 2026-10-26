@@ -18,14 +18,15 @@ export const getDashboard = asyncHandler(
       recentOrders,
       lowStock,
     ] = await prisma.$transaction([
-      prisma.order.count(),
+      prisma.order.count({ where: { isDeleted: false } }),
       prisma.payment.aggregate({
-        where: { status: "SUCCESS" },
+        where: { status: "SUCCESS", order: { isDeleted: false } },
         _sum: { amount: true },
       }),
-      prisma.user.count({ where: { role: "CUSTOMER" } }),
-      prisma.product.count({ where: { isActive: true } }),
+      prisma.user.count({ where: { role: "CUSTOMER", isDeleted: false } }),
+      prisma.product.count({ where: { isActive: true, isDeleted: false } }),
       prisma.order.findMany({
+        where: { isDeleted: false },
         take: 10,
         orderBy: { createdAt: "desc" },
         include: {
@@ -34,7 +35,7 @@ export const getDashboard = asyncHandler(
         },
       }),
       prisma.product.findMany({
-        where: { isActive: true, stockQty: { lte: 5 } },
+        where: { isActive: true, isDeleted: false, stockQty: { lte: 5 } },
         include: { brand: { select: { name: true } } },
         orderBy: { stockQty: "asc" },
         take: 10,
@@ -66,7 +67,10 @@ export const getAllOrders = asyncHandler(
     });
 
     const skip = (validated.page - 1) * validated.limit;
-    const where = validated.status ? { status: validated.status } : {};
+    const where = {
+      isDeleted: false,
+      ...(validated.status ? { status: validated.status } : {}),
+    };
 
     const [orders, total] = await prisma.$transaction([
       prisma.order.findMany({
@@ -105,15 +109,43 @@ export const getAllOrders = asyncHandler(
 export const updateOrderStatus = asyncHandler(
   async (req: Request, res: Response) => {
     const validated = updateOrderStatusSchema.parse(req.body);
-    const order = await prisma.order.findUnique({
-      where: { id: String(req.params.id) },
-      include: { user: true },
-    });
-    if (!order) throw ApiError.notFound("Order not found");
+    const updated = await prisma.$transaction(async (tx) => {
+      const order = await tx.order.findFirst({
+        where: { id: String(req.params.id), isDeleted: false },
+        include: { payment: true },
+      });
+      if (!order) throw ApiError.notFound("Order not found");
 
-    const updated = await prisma.order.update({
-      where: { id: order.id },
-      data: { status: validated.status },
+      if (validated.status === "CANCELLED") {
+        if (order.status === "CANCELLED") {
+          throw ApiError.badRequest("Order is already cancelled");
+        }
+        if (order.status === "DELIVERED") {
+          throw ApiError.badRequest("Delivered orders cannot be cancelled");
+        }
+        if (order.payment?.status === "SUCCESS") {
+          throw ApiError.badRequest("Paid orders cannot be cancelled");
+        }
+      }
+
+      const allowedTransitions: Record<string, string[]> = {
+        PENDING: ["CONFIRMED", "CANCELLED"],
+        CONFIRMED: ["PROCESSING", "CANCELLED"],
+        PROCESSING: ["SHIPPED", "CANCELLED"],
+        SHIPPED: ["DELIVERED"],
+        DELIVERED: [],
+        CANCELLED: [],
+      };
+      if (!allowedTransitions[order.status].includes(validated.status)) {
+        throw ApiError.badRequest(
+          `Cannot change an ${order.status.toLowerCase()} order to ${validated.status.toLowerCase()}`,
+        );
+      }
+
+      return tx.order.update({
+        where: { id: order.id },
+        data: { status: validated.status },
+      });
     });
 
     res.json({ success: true, data: updated });
@@ -129,6 +161,7 @@ export const getAllUsers = asyncHandler(async (req: Request, res: Response) => {
 
   const [users, total] = await prisma.$transaction([
     prisma.user.findMany({
+      where: { isDeleted: false },
       skip,
       take: validated.limit,
       orderBy: { createdAt: "desc" },
@@ -141,10 +174,10 @@ export const getAllUsers = asyncHandler(async (req: Request, res: Response) => {
         role: true,
         isActive: true,
         createdAt: true,
-        _count: { select: { orders: true } },
+        _count: { select: { orders: { where: { isDeleted: false } } } },
       },
     }),
-    prisma.user.count(),
+    prisma.user.count({ where: { isDeleted: false } }),
   ]);
 
   res.json({
@@ -161,7 +194,7 @@ export const getAllUsers = asyncHandler(async (req: Request, res: Response) => {
 export const getInventory = asyncHandler(
   async (_req: Request, res: Response) => {
     const products = await prisma.product.findMany({
-      where: { isActive: true },
+      where: { isActive: true, isDeleted: false },
       include: {
         brand: { select: { name: true } },
         category: { select: { name: true } },
@@ -211,6 +244,7 @@ export const getAllProducts = asyncHandler(
 
     const [products, total] = await prisma.$transaction([
       prisma.product.findMany({
+        where: { isDeleted: false },
         skip,
         take: validated.limit,
         orderBy: { createdAt: "desc" },
@@ -220,7 +254,7 @@ export const getAllProducts = asyncHandler(
           images: { where: { isPrimary: true }, take: 1 },
         },
       }),
-      prisma.product.count(),
+      prisma.product.count({ where: { isDeleted: false } }),
     ]);
 
     res.json({
@@ -238,7 +272,7 @@ export const getAllProducts = asyncHandler(
 export const getProductById = asyncHandler(
   async (req: Request, res: Response) => {
     const product = await prisma.product.findUnique({
-      where: { id: String(req.params.id) },
+      where: { id: String(req.params.id), isDeleted: false },
       include: {
         brand: true,
         category: true,

@@ -1,4 +1,5 @@
 import "dotenv/config";
+import path from "path";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -19,6 +20,7 @@ import orderRoutes from "./routes/order.routes";
 import paymentRoutes from "./routes/payment.routes";
 import adminRoutes from "./routes/admin.routes";
 import productRoutes from "./routes/product.route";
+import { startTokenCleanup } from "./jobs/cleanupTokens";
 
 const app = express();
 
@@ -64,8 +66,8 @@ app.use(requestId);
 app.use(requestLogger);
 
 //  Body parsing
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "100kb" }));
+app.use(express.urlencoded({ extended: true, limit: "100kb" }));
 app.use(cookieParser());
 
 //  Health checks
@@ -98,6 +100,15 @@ app.use(`${v1}/payments`, paymentRoutes);
 app.use(`${v1}/admin`, adminRoutes);
 app.use(`${v1}/products`, productRoutes);
 
+// Serve React build in single-container production deploys
+if (env.serveClient) {
+  const clientDist = path.resolve(__dirname, "../../client/dist");
+  app.use(express.static(clientDist));
+  app.get(/^(?!\/api).*/, (_req, res) => {
+    res.sendFile(path.join(clientDist, "index.html"));
+  });
+}
+
 //  Error handling
 app.use(notFoundHandler);
 app.use(errorHandler);
@@ -105,12 +116,14 @@ app.use(errorHandler);
 //  Boot
 const start = async () => {
   await connectDB();
+  const stopTokenCleanup = startTokenCleanup();
   const server = app.listen(env.port, () => {
     logger.info({ port: env.port, env: env.nodeEnv }, "E-Star API started");
   });
 
   const shutdown = (signal: string) => {
     logger.info({ signal }, "Shutting down gracefully");
+    stopTokenCleanup();
     server.close(async () => {
       await disconnectDB();
       logger.info("Shutdown complete");

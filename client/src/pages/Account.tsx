@@ -11,6 +11,7 @@ import { kes } from "@/utils/formatCurrency";
 import { fmtDate } from "@/utils/formatDate";
 import { useCartStore } from "@/store/cart";
 import type { Order } from "@/types";
+import { getApiError } from "@/utils/getApiError";
 import toast from "react-hot-toast";
 
 export default function Account() {
@@ -18,6 +19,7 @@ export default function Account() {
   const { resetCart } = useCartStore();
   const [orders, setOrders] = useState<Order[]>([]);
   const [busy, setBusy] = useState(true);
+  const [sendingVerify, setSendingVerify] = useState(false);
   const nav = useNavigate();
 
   useEffect(() => {
@@ -40,8 +42,35 @@ export default function Account() {
     nav("/");
   };
 
+  const sendVerification = async () => {
+    setSendingVerify(true);
+    try {
+      await authApi.sendVerificationEmail();
+      toast.success("Verification email sent — check your inbox.");
+    } catch (e: unknown) {
+      toast.error(getApiError(e, "Could not send verification email"));
+    } finally {
+      setSendingVerify(false);
+    }
+  };
+
   return (
     <div className="section py-10">
+      {!user?.isVerified && (
+        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <p className="text-sm text-amber-800">
+            Your email is not verified yet. Please verify to secure your
+            account.
+          </p>
+          <button
+            onClick={sendVerification}
+            disabled={sendingVerify}
+            className="text-sm font-semibold text-amber-900 hover:underline disabled:opacity-50"
+          >
+            {sendingVerify ? "Sending…" : "Send verification email"}
+          </button>
+        </div>
+      )}
       <div className="grid lg:grid-cols-4 gap-8">
         {/* Sidebar */}
         <aside className="lg:col-span-1">

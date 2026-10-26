@@ -124,6 +124,14 @@ export default function Login() {
               }
               {...register("password")}
             />
+            <div className="flex justify-end">
+              <Link
+                to="/forgot-password"
+                className="text-xs text-brand-600 font-medium hover:underline"
+              >
+                Forgot password?
+              </Link>
+            </div>
             <Button type="submit" fullWidth size="lg" loading={loading}>
               Sign In
             </Button>
