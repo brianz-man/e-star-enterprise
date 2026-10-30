@@ -119,7 +119,7 @@ export const initiateSTKPush = async (
 
   const phone = params.phone;
 
-  const callbackBase = `${env.mpesa.apiBaseUrl}/api/v1/payments/mpesa/callback`;
+  const callbackBase = `${env.mpesa.apiBaseUrl.replace(/\/$/, "")}/api/v1/payments/mpesa/callback`;
   const callbackUrl = env.mpesa.callbackToken
     ? `${callbackBase}?token=${encodeURIComponent(env.mpesa.callbackToken)}`
     : callbackBase;

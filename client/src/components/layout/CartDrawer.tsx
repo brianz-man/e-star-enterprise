@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { X, Trash2, ShoppingBag } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useCart, useCartTotal } from "@/hooks/cart";
@@ -12,6 +13,15 @@ export const CartDrawer = () => {
     useCart();
   const total = useCartTotal();
   const isAuth = useIsAuth();
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeDrawer();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, closeDrawer]);
 
   const handleUpdateQuantity = async (itemId: string, qty: number) => {
     try {
@@ -40,7 +50,10 @@ export const CartDrawer = () => {
       )}
 
       <div
-        className={`fixed right-0 top-0 h-full w-full sm:w-400 bg-white shadow-2xl z-50 flex flex-col transition-transform duration-300 ease-in-out ${isOpen ? "translate-x-0" : "translate-x-full"}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Shopping cart"
+        className={`fixed right-0 top-0 h-full w-full sm:w-[400px] bg-white shadow-2xl z-50 flex flex-col transition-transform duration-300 ease-in-out ${isOpen ? "translate-x-0" : "translate-x-full"}`}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
@@ -54,8 +67,10 @@ export const CartDrawer = () => {
             )}
           </div>
           <button
+            type="button"
             onClick={closeDrawer}
-            className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition-colors"
+            aria-label="Close shopping cart"
+            className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 transition-colors"
           >
             <X size={18} />
           </button>

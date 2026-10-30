@@ -37,6 +37,15 @@ export const Navbar = () => {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileOpen(false);
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [mobileOpen]);
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (q.trim()) {
@@ -112,7 +121,9 @@ export const Navbar = () => {
         <div className="flex items-center gap-2 ml-auto">
           {/* Cart */}
           <button
+            type="button"
             onClick={openDrawer}
+            aria-label="Open shopping cart"
             className="relative p-2 rounded-xl text-gray-600 hover:bg-gray-100 transition-colors"
           >
             <ShoppingCart size={20} />
@@ -194,7 +205,10 @@ export const Navbar = () => {
 
           {/* Mobile toggle */}
           <button
+            type="button"
             onClick={() => setMobileOpen((v) => !v)}
+            aria-label={mobileOpen ? "Close navigation menu" : "Open navigation menu"}
+            aria-expanded={mobileOpen}
             className="md:hidden p-2 rounded-xl text-gray-600 hover:bg-gray-100 transition-colors"
           >
             {mobileOpen ? <X size={20} /> : <Menu size={20} />}

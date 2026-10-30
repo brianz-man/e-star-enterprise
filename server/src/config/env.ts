@@ -1,4 +1,5 @@
 import dotenv from "dotenv";
+import { assertDistinctSecrets, assertStrongSecret } from "./secrets";
 dotenv.config();
 
 const isProd = process.env.NODE_ENV === "production";
@@ -75,6 +76,10 @@ export const env = {
     emailFrom: process.env.EMAIL_FROM || "orders@e-star.co.ke",
   },
 };
+
+assertStrongSecret("JWT_SECRET", env.jwt.secret);
+assertStrongSecret("JWT_REFRESH_SECRET", env.jwt.refreshSecret);
+assertDistinctSecrets(env.jwt.secret, env.jwt.refreshSecret);
 
 if (env.cookie.sameSite === "none" && !env.cookie.secure) {
   throw new Error("COOKIE_SAME_SITE=none requires NODE_ENV=production");
