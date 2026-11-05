@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import "dotenv/config";
 
 const prisma = new PrismaClient();
 
@@ -7,12 +8,26 @@ async function main() {
   console.log("  Seeding E-Star database...");
 
   // ── Admin user ──────────────────────────────────────────────────────────────
-  const adminHash = await bcrypt.hash("Admin@1234", 12);
+  const adminEmail = process.env.ADMIN_SEED_EMAIL || "admin@e-star.co.ke";
+  const adminPassword = process.env.ADMIN_SEED_PASSWORD;
+  if (!adminPassword || adminPassword.length < 16)
+    throw new Error(
+      "ADMIN_SEED_PASSWORD is required and must be at least 16 characters",
+    );
+  if (
+    process.env.NODE_ENV === "production" &&
+    process.env.ALLOW_PRODUCTION_SEED !== "true"
+  )
+    throw new Error(
+      "Production seeding requires ALLOW_PRODUCTION_SEED=true",
+    );
+
+  const adminHash = await bcrypt.hash(adminPassword, 12);
   const admin = await prisma.user.upsert({
-    where: { email: "admin@e-star.co.ke" },
-    update: {},
+    where: { email: adminEmail },
+    update: { passwordHash: adminHash, role: "ADMIN", isVerified: true },
     create: {
-      email: "admin@e-star.co.ke",
+      email: adminEmail,
       passwordHash: adminHash,
       firstName: "E-Star",
       lastName: "Admin",
@@ -21,27 +36,6 @@ async function main() {
     },
   });
   console.log("  Admin:", admin.email);
-
-  // ── Demo customer ───────────────────────────────────────────────────────────
-  const customerHash = await bcrypt.hash("Customer@1234", 12);
-  const customer = await prisma.user.upsert({
-    where: { email: "customer@example.com" },
-    update: {},
-    create: {
-      email: "customer@example.com",
-      passwordHash: customerHash,
-      firstName: "Jane",
-      lastName: "Doe",
-      phone: "254712345678",
-      isVerified: true,
-    },
-  });
-  await prisma.cart.upsert({
-    where: { userId: customer.id },
-    update: {},
-    create: { userId: customer.id },
-  });
-  console.log("  Customer:", customer.email);
 
   // ── Brands ──────────────────────────────────────────────────────────────────
   const brands = await Promise.all([
@@ -204,8 +198,7 @@ async function main() {
   }
 
   console.log("\n  Seed complete!");
-  console.log("   Admin login:    admin@e-star.co.ke  /  Admin@1234");
-  console.log("   Customer login: customer@example.com  /  Customer@1234");
+  console.log("   Bootstrap administrator:", adminEmail);
 }
 
 main()
